@@ -1,0 +1,26 @@
+Subject,Scope,Permission,Required,Reason
+Verifier bot,Server,View Channels,Yes,See selected configured channels
+Verifier bot,Server,Manage Roles,Yes,Update dedicated qualifying roles below the bot
+Verifier bot,Server,Manage Channels,Optional,Create unset verifier channels during explicit setup only
+Verifier bot,Server,Administrator,No,Unnecessary for normal operation
+Verifier bot,Developer Portal,Server Members Intent,Yes,Read current member roles and safely refresh members
+Verifier bot,Developer Portal,Message Content Intent,No,No chat moderation or prefix parsing
+Verifier bot,Connection channel,View Channel,Yes,Post persistent connection panel
+Verifier bot,Connection channel,Read Message History,Yes,Find and update its existing panel
+Verifier bot,Connection channel,Send Messages,Yes,Post and update panel
+Verifier bot,Connection channel,Embed Links,Yes,Branded messages
+Verifier bot,Pull channel,View Channel,When feed enabled,Post signed pack events
+Verifier bot,Pull channel,Read Message History,When feed enabled,Review existing event messages
+Verifier bot,Pull channel,Send Messages,When feed enabled,Post pack announcements
+Verifier bot,Pull channel,Embed Links,When feed enabled,Show car images and asset links
+Verifier bot,Staff log channel,View Channel,Yes,Private diagnostics
+Verifier bot,Staff log channel,Read Message History,Yes,Diagnostic access
+Verifier bot,Staff log channel,Send Messages,Yes,Private error notifications
+Verifier bot,Staff log channel,Embed Links,Yes,Readable error IDs and guidance
+Verifier bot,Staff log channel,Attach Files,Yes,Operational attachments
+Gate member role,Connection and pull channels,View Channel,Yes,Use connection panel and read announcements
+Gate member role,Connection and pull channels,Read Message History,Yes,Read existing instructions and posts
+Gate member role,Connection and pull channels,Send Messages,No,Buttons work in read-only channels
+Ordinary users,Staff log channel,View Channel,No,Diagnostics are staff-only
+Qualifying roles,Server,All server permission bits,Zero,Eligibility labels must not grant staff or entry authority
+Admin users,Server,Manage Server or Administrator,Yes,Access private configuration and operational actions

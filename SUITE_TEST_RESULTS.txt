@@ -1,0 +1,51 @@
+Rip Cars suite compatibility verification
+Validated at UTC: 2026-10-04T23:56:50.403604+00:00
+
+Gate 1.0.2: 79 tests passed; zero failures/errors/skips.
+Crew 1.0.1: 179 tests passed; zero failures/errors/skips.
+Raffle 1.0.1: 217 tests passed; zero failures/errors/skips.
+Verifier 1.0.1: 197 tests passed; zero failures/errors/skips.
+
+Project test executions: 672. Separate four-process tests: 21. Total: 693.
+The shared protocol tests run independently in each project and are included
+in those project counts. The fresh Verifier staging rerun is not double-counted.
+
+The integration runner launches actual Gate, Crew, Raffle and Verifier storage
+implementations in separate Python processes, with their own interpreters.
+It exercises all 12 ordered peer contention pairs, four initialization orders,
+different guilds, both legacy lease formats, foreign/manual ownership retention,
+private table separation, identical protocol source and consumption of a
+dedicated Verifier qualifying role by existing Raffle eligibility rules.
+
+SDK UI/runtime tests use simulated Discord/provider responses. These checks
+do not log in to Discord, read production user databases or install services
+on the user VPS. Complete live acceptance before public activation.
+
+Actual multi-process unittest output:
+
+test_all_four_can_initialize_a_fresh_shared_database (suite_tests.test_four_bots.FourBotTests.test_all_four_can_initialize_a_fresh_shared_database) ... ok
+test_all_four_guild_leases_are_independent (suite_tests.test_four_bots.FourBotTests.test_all_four_guild_leases_are_independent) ... ok
+test_crew_blocks_gate (suite_tests.test_four_bots.FourBotTests.test_crew_blocks_gate) ... ok
+test_crew_blocks_raffle (suite_tests.test_four_bots.FourBotTests.test_crew_blocks_raffle) ... ok
+test_crew_blocks_verifier (suite_tests.test_four_bots.FourBotTests.test_crew_blocks_verifier) ... ok
+test_each_first_controller_preserves_later_readers (suite_tests.test_four_bots.FourBotTests.test_each_first_controller_preserves_later_readers) ... ok
+test_foreign_and_manual_resource_bindings_survive_all_readers (suite_tests.test_four_bots.FourBotTests.test_foreign_and_manual_resource_bindings_survive_all_readers) ... ok
+test_gate_blocks_crew (suite_tests.test_four_bots.FourBotTests.test_gate_blocks_crew) ... ok
+test_gate_blocks_raffle (suite_tests.test_four_bots.FourBotTests.test_gate_blocks_raffle) ... ok
+test_gate_blocks_verifier (suite_tests.test_four_bots.FourBotTests.test_gate_blocks_verifier) ... ok
+test_legacy_gate_lease_blocks_all_new_controllers (suite_tests.test_four_bots.FourBotTests.test_legacy_gate_lease_blocks_all_new_controllers) ... ok
+test_legacy_raffle_lock_blocks_all_new_controllers (suite_tests.test_four_bots.FourBotTests.test_legacy_raffle_lock_blocks_all_new_controllers) ... ok
+test_private_financial_support_and_raffle_tables_do_not_enter_shared_registry (suite_tests.test_four_bots.FourBotTests.test_private_financial_support_and_raffle_tables_do_not_enter_shared_registry) ... ok
+test_protocol_file_is_identical_in_every_repository (suite_tests.test_four_bots.FourBotTests.test_protocol_file_is_identical_in_every_repository) ... ok
+test_raffle_blocks_crew (suite_tests.test_four_bots.FourBotTests.test_raffle_blocks_crew) ... ok
+test_raffle_blocks_gate (suite_tests.test_four_bots.FourBotTests.test_raffle_blocks_gate) ... ok
+test_raffle_blocks_verifier (suite_tests.test_four_bots.FourBotTests.test_raffle_blocks_verifier) ... ok
+test_raffle_consumes_a_dedicated_verifier_role_without_assigning_it (suite_tests.test_four_bots.FourBotTests.test_raffle_consumes_a_dedicated_verifier_role_without_assigning_it) ... ok
+test_verifier_blocks_crew (suite_tests.test_four_bots.FourBotTests.test_verifier_blocks_crew) ... ok
+test_verifier_blocks_gate (suite_tests.test_four_bots.FourBotTests.test_verifier_blocks_gate) ... ok
+test_verifier_blocks_raffle (suite_tests.test_four_bots.FourBotTests.test_verifier_blocks_raffle) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 6.006s
+
+OK

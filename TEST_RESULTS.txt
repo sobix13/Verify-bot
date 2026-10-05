@@ -1,0 +1,35 @@
+Ripcars Verifier 1.0.1 - Release validation
+Validated at UTC: 2026-10-04T23:56:50.403604+00:00
+
+197 tests passed. Failures: 0. Errors: 0. Skips: 0.
+Python 3.12.14; discord.py 2.7.1; aiohttp 3.14.3.
+Each project was tested in its separately configured Python environment.
+
+Checks passed:
+- Current project run_tests.sh, actual SDK imports and real SQLite.
+- Protocol 2 mirrored leases, legacy blockers, unique identities and read-only inspection.
+- Project-specific functional, failure, recovery and authorization tests.
+- Python compilation, dependency compatibility and shell syntax.
+- Pyflakes static checks.
+- Wallet client JavaScript syntax, real local aiohttp service/worker and encrypted backup.
+- Fresh staged release with newly installed runtime: 197 tests passed.
+- Previously audited pinned runtime dependencies are unchanged; audit details are in DEPENDENCY_AUDIT.json.
+
+Four actual implementations were also run as separate processes sharing only
+temporary SQLite. All 21 multi-process tests passed. See SUITE_TEST_RESULTS.txt.
+
+Not run: live Discord gateway/production API, live Rip Cars backend or provider,
+installation on the user VPS, production DNS/TLS and multi-day load testing.
+Complete ACCEPTANCE.md before opening features to members.
+
+TEST_RUN.log contains the current verbose execution output. Tracebacks/log errors
+from intentionally injected failure fixtures are not failing test results.
+
+Final unittest result:
+test_wrong_signature_creates_no_delivery (tests.test_web_backups.WebTests.test_wrong_signature_creates_no_delivery) ... ok
+
+----------------------------------------------------------------------
+Ran 197 tests in 1.859s
+
+OK
+No broken requirements found.

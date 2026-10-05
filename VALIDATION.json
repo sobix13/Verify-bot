@@ -1,0 +1,45 @@
+{
+  "bot": "Ripcars Verifier",
+  "version": "1.0.1",
+  "validated_at_utc": "2026-10-04T23:56:50.403604+00:00",
+  "status": "local checks passed; live acceptance pending",
+  "coordination_protocol": 2,
+  "tests_discovered": 197,
+  "passed": 197,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "runtime": {
+    "python": "3.12.14",
+    "discord.py": "2.7.1",
+    "aiohttp": "3.14.3"
+  },
+  "shared_multi_process_tests": {
+    "passed": 21,
+    "failures": 0,
+    "processes": 4,
+    "temporary_databases_only": true
+  },
+  "checks": {
+    "python_compilation": true,
+    "dependency_compatibility": true,
+    "shell_syntax": true,
+    "static_analysis": true,
+    "english_text": true,
+    "legacy_brand_matches": 0,
+    "javascript_syntax": true
+  },
+  "test_boundaries": {
+    "live_discord_gateway": false,
+    "production_discord_api": false,
+    "live_ripcars_backend": false,
+    "live_rpc_provider": false,
+    "user_vps_installation": false
+  },
+  "fresh_staged_release": {
+    "passed": true,
+    "tests": 197,
+    "fresh_virtual_environment": true
+  },
+  "schema_version": 1
+}
