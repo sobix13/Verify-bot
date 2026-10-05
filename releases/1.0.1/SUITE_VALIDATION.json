@@ -1,0 +1,72 @@
+{
+  "protocol": 2,
+  "validated_at_utc": "2026-10-04T23:56:50.403604+00:00",
+  "projects": {
+    "gate": {
+      "version": "1.0.2",
+      "passed": 79,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "runtime": {
+        "python": "3.12.14",
+        "discord.py": "2.6.4",
+        "aiohttp": "3.13.5"
+      }
+    },
+    "crew": {
+      "version": "1.0.1",
+      "passed": 179,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "runtime": {
+        "python": "3.12.14",
+        "discord.py": "2.7.1",
+        "aiohttp": "3.14.3"
+      }
+    },
+    "raffle": {
+      "version": "1.0.1",
+      "passed": 217,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "runtime": {
+        "python": "3.12.14",
+        "discord.py": "2.7.1",
+        "aiohttp": "3.14.3"
+      }
+    },
+    "verifier": {
+      "version": "1.0.1",
+      "passed": 197,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "runtime": {
+        "python": "3.12.14",
+        "discord.py": "2.7.1",
+        "aiohttp": "3.14.3"
+      }
+    }
+  },
+  "project_tests_passed": 672,
+  "multi_process_tests_passed": 21,
+  "total_test_executions": 693,
+  "all_passed": true,
+  "test_boundaries": {
+    "live_discord": false,
+    "user_vps_installation": false,
+    "live_chain_or_platform": false
+  },
+  "issues_fixed": [
+    "Legacy lease table mismatch",
+    "Foreign Gate resource takeover in adoption/review",
+    "Non-atomic resource handoff",
+    "Long Crew lease renewal and next-change checks",
+    "Cross-kind Verifier channel ownership detection",
+    "Private/shared Gate database path equality",
+    "SQLite cancellation transaction serialization"
+  ]
+}
