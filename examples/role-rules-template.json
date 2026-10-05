@@ -1,0 +1,107 @@
+[
+  {
+    "key": "deposit_points_1000",
+    "name": "Rips 1000",
+    "role_id": 0,
+    "kind": "deposit_points",
+    "threshold": "1000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "deposit_points_25000",
+    "name": "Rips 25000",
+    "role_id": 0,
+    "kind": "deposit_points",
+    "threshold": "25000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "deposit_points_100000",
+    "name": "Rips 100000",
+    "role_id": 0,
+    "kind": "deposit_points",
+    "threshold": "100000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "platform_points_1000",
+    "name": "Points 1000",
+    "role_id": 0,
+    "kind": "platform_points",
+    "threshold": "1000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "platform_points_25000",
+    "name": "Points 25000",
+    "role_id": 0,
+    "kind": "platform_points",
+    "threshold": "25000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "platform_points_100000",
+    "name": "Points 100000",
+    "role_id": 0,
+    "kind": "platform_points",
+    "threshold": "100000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "token_balance_10000",
+    "name": "CARS 10000",
+    "role_id": 0,
+    "kind": "token_balance",
+    "threshold": "10000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "token_balance_25000",
+    "name": "CARS 25000",
+    "role_id": 0,
+    "kind": "token_balance",
+    "threshold": "25000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "token_balance_100000",
+    "name": "CARS 100000",
+    "role_id": 0,
+    "kind": "token_balance",
+    "threshold": "100000",
+    "selector": {},
+    "enabled": false
+  },
+  {
+    "key": "model_roxy",
+    "name": "Roxy Collectors",
+    "role_id": 0,
+    "kind": "asset_count",
+    "threshold": "1",
+    "selector": {
+      "attribute": "Model",
+      "value": "Roxy"
+    },
+    "enabled": false
+  },
+  {
+    "key": "model_gulf",
+    "name": "Gulf Collectors",
+    "role_id": 0,
+    "kind": "asset_count",
+    "threshold": "1",
+    "selector": {
+      "attribute": "Model",
+      "value": "Gulf"
+    },
+    "enabled": false
+  }
+]

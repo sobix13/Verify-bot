@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "account_id": "example-authenticated-account",
+  "complete": true,
+  "as_of": 1791072000,
+  "platform_points": "25000",
+  "token_balance": "12000.25",
+  "assets": [
+    {
+      "id": "team-provided-stable-asset-id",
+      "collection": "team-provided-collection-id",
+      "attributes": {"Model": "Roxy"}
+    }
+  ],
+  "deposits": [
+    {"id": "example-settled-payment-1", "kind": "deposit", "status": "settled", "usd_amount": "12.50"}
+  ],
+  "next_cursor": null
+}
