@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "type": "rip.opened",
+  "id": "example-pull-0001",
+  "guild_id": 123456789012345678,
+  "car_name": "Example Hot Wheels car",
+  "asset_id": "team-provided-stable-asset-id",
+  "occurred_at": 1791072000,
+  "image_url": "https://images.example.com/example-car.png",
+  "asset_url": "https://app.ripcars.io/"
+}
