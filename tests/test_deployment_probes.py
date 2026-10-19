@@ -22,6 +22,36 @@ class DeploymentTests(unittest.TestCase):
         env=self.env(); env.update(DISCORD_TOKEN='replace_me',WEB_HOST='0.0.0.0',PUBLIC_URL='http://verify.example.com'); self.assertEqual(len(validate_env(env)),3)
     def test_private_and_shared_database_cannot_be_same(self):
         env=self.env(); env['DATABASE_PATH']=env['COORDINATION_PATH']; self.assertTrue(any('different files' in e for e in validate_env(env)))
+    def test_private_shared_path_alias_is_rejected_before_open(self):
+        from ripcars_verifier.bot import Verifier
+        env=self.env()
+        env['DATABASE_PATH']='/var/lib/ripcars-bots/../ripcars-bots/coordination.sqlite3'
+        self.assertTrue(any('different files' in e for e in validate_env(env)))
+        with self.assertRaisesRegex(ValueError,'different files'): Verifier(env)
+
+    def test_private_shared_symlink_alias_is_rejected(self):
+        from ripcars_verifier.bot import Verifier
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'shared.sqlite3';path.touch()
+            alias=Path(folder)/'alias.sqlite3';alias.symlink_to(path)
+            env=self.env();env.update(DATABASE_PATH=str(alias),COORDINATION_PATH=str(path))
+            self.assertTrue(any('different files' in e for e in validate_env(env)))
+            with self.assertRaisesRegex(ValueError,'different files'): Verifier(env)
+            self.assertEqual(path.read_bytes(),b'')
+
+    def test_staging_private_source_preserves_service_traversal(self):
+        from scripts.stage_release import stage
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder:
+            source=Path(folder)/'src';source.mkdir(mode=0o700)
+            (source/'VERSION').write_text('1.0.1')
+            (source/'.env').write_text('SECRET=hidden')
+            destination=Path(folder)/'candidate'
+            with patch('scripts.stage_release.venv.create'),patch('scripts.stage_release.subprocess.run'):
+                stage(source,destination)
+            self.assertEqual(destination.stat().st_mode & 0o777,0o755)
+            self.assertFalse((destination/'.env').exists())
+
     def test_env_parser_never_runs_shell(self):
         with tempfile.TemporaryDirectory() as folder:
             target=Path(folder)/'env'; target.write_text('DISCORD_TOKEN="$(touch hacked)"\nPUBLIC_URL="https://verify.example.com"\n')
