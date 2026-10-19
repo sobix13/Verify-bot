@@ -38,6 +38,8 @@ class Verifier(commands.Bot):
     def __init__(self,env=None):
         self.env=dict(os.environ if env is None else env)
         self.env.setdefault('DATABASE_PATH','data/verifier.sqlite3'); self.env.setdefault('COORDINATION_PATH','data/coordination.sqlite3'); self.env.setdefault('BACKUP_PATH','data/backups')
+        if Path(self.env['DATABASE_PATH']).resolve()==Path(self.env['COORDINATION_PATH']).resolve():
+            raise ValueError('Private database and shared coordination must be different files.')
         intents=discord.Intents.default(); intents.members=True; intents.message_content=False
         super().__init__(command_prefix=commands.when_mentioned,intents=intents,allowed_mentions=discord.AllowedMentions.none())
         self.db=Store(self.env['DATABASE_PATH']); self.registry=Registry(self.env['COORDINATION_PATH']); self.http=Http(lambda:setattr(self,'worker_tick',time.monotonic()))
