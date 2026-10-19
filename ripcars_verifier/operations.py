@@ -19,12 +19,18 @@ def admin(member):
 async def authorized(bot,interaction,require_admin=False):
     if not interaction.guild or not isinstance(interaction.user,discord.Member) or interaction.user.bot:
         raise ValueError('Use this command in your Discord server.')
+    if getattr(interaction,'type',None)==discord.InteractionType.application_command:
+        await acknowledge(interaction)
     cfg,revision=await bot.db.settings(interaction.guild_id)
     if require_admin:
         if not admin(interaction.user): raise ValueError('This action requires Manage Server or Administrator.')
     elif cfg['member_role'] not in {r.id for r in interaction.user.roles} and not admin(interaction.user):
         raise ValueError('Complete Gate entry before connecting a wallet or account.')
     return cfg,revision
+
+
+async def acknowledge(interaction):
+    if not interaction.response.is_done(): await interaction.response.defer(ephemeral=True)
 
 
 async def reply(interaction,content=None,**kwargs):

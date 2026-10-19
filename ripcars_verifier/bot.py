@@ -74,6 +74,9 @@ class Verifier(commands.Bot):
     async def command_error(self,interaction,error):
         from .operations import reply
         original=getattr(error,'original',error)
+        if isinstance(original,discord.NotFound) and original.code==10062:
+            logging.getLogger('ripcars.verifier').warning('Command interaction expired; no response retry: %s',getattr(interaction.command,'qualified_name','unknown'))
+            return
         if isinstance(original,ValueError): await reply(interaction,str(original)); return
         error_id=await self.reporter.error(interaction.guild,'slash command',original)
         await reply(interaction,'This action failed. Error ID: '+error_id+'. Run /verifier doctor.')
