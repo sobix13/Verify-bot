@@ -188,4 +188,5 @@ class EngineTests(DBCase):
     def test_disabled_rule_removes_owned_role_only(self):
         cfg=defaults(); cfg['rules']=[rule(enabled=False)]; self.assertEqual(role_plan(cfg,{}, {20},{20})[1],[20])
     def test_activation_blockers_are_actionable(self):
-        blockers=readiness(defaults(),{}); self.assertTrue(any('PUBLIC_URL' in b for b in blockers)); self.assertTrue(any('Publish' in b for b in blockers))
+        cfg=defaults(); self.assertFalse(any('PUBLIC_URL' in b for b in readiness(cfg,{}))); cfg['wallet_linking']=True
+        blockers=readiness(cfg,{}); self.assertTrue(any('PUBLIC_URL' in b for b in blockers)); self.assertTrue(any('Publish' in b for b in blockers))

@@ -18,6 +18,7 @@ from .helpers import DBCase, WALLET, keypair
 class WebTests(DBCase):
     async def asyncSetUp(self):
         await super().asyncSetUp(); self.secret='s'*40; self.linking=Linking(self.store,'https://verify.example.com')
+        await self.settings(wallet_linking=True)
         self.health_ok=True
         async def health(): return {'ok':self.health_ok,'database':True,'discord':self.health_ok,'worker':self.health_ok}
         self.app=build_app(self.store,self.linking,{'PLATFORM_WEBHOOK_SECRET':self.secret,'CHAIN_WEBHOOK_SECRET':self.secret},health)

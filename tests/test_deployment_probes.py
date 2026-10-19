@@ -78,10 +78,10 @@ class DeploymentTests(unittest.TestCase):
 
 class ProbeTests(DBCase):
     def bot(self,http,env=None):
-        bot=SimpleNamespace(db=self.store,http=http,env=env or {},linking=Linking(self.store,'https://verify.example.com')); bot.reporter=Reporter(bot); return bot
+        bot=SimpleNamespace(db=self.store,provider_http=http,env=env or {},linking=Linking(self.store,'https://verify.example.com')); bot.reporter=Reporter(bot); return bot
     async def test_site_probe_success_and_failure(self):
         for healthy in (True,False):
-            cfg=defaults(); result=await probe_sources(self.bot(FakeHttp(lambda *a:{'ok':healthy,'service':'ripcars-verifier'})),1,cfg); self.assertEqual(result[0]['ok'],healthy)
+            cfg=defaults(); cfg['wallet_linking']=True; result=await probe_sources(self.bot(FakeHttp(lambda *a:{'ok':healthy,'service':'ripcars-verifier'})),1,cfg); self.assertEqual(result[0]['ok'],healthy)
     async def test_platform_probe_requires_proven_account(self):
         cfg=defaults(); cfg.update(wallet_linking=False,platform_points=True)
         result=await probe_sources(self.bot(None),1,cfg); self.assertFalse(result[0]['ok']); self.assertIn('Connect a test Rip Cars account',result[0]['detail'])

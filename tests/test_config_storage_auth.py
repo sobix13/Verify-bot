@@ -113,7 +113,7 @@ class StorageTests(DBCase):
 
 class LinkingTests(DBCase):
     async def asyncSetUp(self):
-        await super().asyncSetUp(); self.linking=Linking(self.store,'https://verify.example.com'); self.key,self.wallet=keypair()
+        await super().asyncSetUp(); await self.settings(wallet_linking=True); self.linking=Linking(self.store,'https://verify.example.com'); self.key,self.wallet=keypair()
     async def sign(self,token,wallet=None,key=None,now=None):
         wallet=wallet or self.wallet; message=await self.linking.challenge(token,wallet,now)
         return base64.b64encode((key or self.key).sign(message.encode())).decode(),message
