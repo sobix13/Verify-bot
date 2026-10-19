@@ -40,7 +40,7 @@ def validate_env(env):
     except ValueError: errors.append('WEB_PORT must be an unprivileged port from 1024 to 65535.')
     for key in ('DATABASE_PATH','COORDINATION_PATH','BACKUP_PATH'):
         if not env.get(key) or not Path(env[key]).is_absolute(): errors.append(key+' must be an absolute path.')
-    if env.get('DATABASE_PATH')==env.get('COORDINATION_PATH'): errors.append('Private database and shared coordination must be different files.')
+    if env.get('DATABASE_PATH') and env.get('COORDINATION_PATH') and Path(env['DATABASE_PATH']).resolve()==Path(env['COORDINATION_PATH']).resolve(): errors.append('Private database and shared coordination must be different files.')
     if len(env.get('BACKUP_PASSWORD',''))<20: errors.append('Set a backup password of at least 20 characters.')
     for key in ('RPC_URL','RPC_FALLBACK_URL','DAS_URL','PLATFORM_API_URL'):
         if env.get(key):
