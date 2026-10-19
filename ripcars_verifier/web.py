@@ -51,7 +51,9 @@ def build_app(store,linking,env,health_callback=None):
     def origin(request):
         if request.headers.get('Origin')!=linking.origin: raise ValueError('Origin did not match the connection site.')
 
-    async def page(request): return web.FileResponse(files/'index.html')
+    async def page(request):
+        if not linking.origin: return web.Response(status=503,text='Wallet connection is not configured. Use the account method offered in Discord.')
+        return web.FileResponse(files/'index.html')
     async def script(request): return web.FileResponse(files/'connect.js')
     async def style(request): return web.FileResponse(files/'style.css')
     async def challenge(request):

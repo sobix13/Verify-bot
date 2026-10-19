@@ -42,15 +42,15 @@ class Verifier(commands.Bot):
             raise ValueError('Private database and shared coordination must be different files.')
         intents=discord.Intents.default(); intents.members=True; intents.message_content=False
         super().__init__(command_prefix=commands.when_mentioned,intents=intents,allowed_mentions=discord.AllowedMentions.none())
-        self.db=Store(self.env['DATABASE_PATH']); self.registry=Registry(self.env['COORDINATION_PATH']); self.http=Http(lambda:setattr(self,'worker_tick',time.monotonic()))
-        self.linking=Linking(self.db,self.env.get('PUBLIC_URL','https://verify.example.com')); self.engine=Engine(self.db,self.http,self.env)
+        self.db=Store(self.env['DATABASE_PATH']); self.registry=Registry(self.env['COORDINATION_PATH']); self.provider_http=Http(lambda:setattr(self,'worker_tick',time.monotonic()))
+        self.linking=Linking(self.db,self.env.get('PUBLIC_URL','')); self.engine=Engine(self.db,self.provider_http,self.env)
         self.reporter=Reporter(self); self.tasks=[]; self.runner=None; self.started=time.monotonic(); self.worker_tick=time.monotonic(); self.backup_day=''; self.bot_ready=False
         from .commands import VerifierCommands
         self.tree.add_command(VerifierCommands(self))
         self.tree.on_error=self.command_error
 
     async def setup_hook(self):
-        await self.db.open(); await self.registry.open(); await self.http.open()
+        await self.db.open(); await self.registry.open(); await self.provider_http.open()
         await self.db.execute("UPDATE deliveries SET state='review' WHERE state='sending'")
         self.add_view(MemberPanel(self))
         app=build_app(self.db,self.linking,self.env,self.web_health)
@@ -258,4 +258,4 @@ class Verifier(commands.Bot):
             except asyncio.CancelledError: pass
             except Exception: pass
         if self.runner: await self.runner.cleanup()
-        await self.http.close(); await super().close()
+        await self.provider_http.close(); await super().close()

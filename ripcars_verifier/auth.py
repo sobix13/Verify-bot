@@ -23,11 +23,15 @@ def token_hash(token):
 
 class Linking:
     def __init__(self,store,public_url):
-        self.store=store; self.origin=safe_url(public_url,origin_only=True)
+        self.store=store; self.origin=safe_url(public_url,origin_only=True) if public_url else ''
+
+    def require_wallet_site(self):
+        if not self.origin: raise ValueError('Configure the HTTPS wallet connection site before enabling wallet linking.')
 
     async def create(self,guild,user,purpose='wallet',now=None):
         now=time.time() if now is None else now
         if purpose not in ('wallet','account'): raise ValueError('Unknown connection purpose.')
+        if purpose=='wallet': self.require_wallet_site()
         token=secrets.token_urlsafe(32)
         def issue(c):
             count=c.execute('SELECT COUNT(*) FROM sessions WHERE guild=? AND user=? AND expires>? AND used=0',(guild,user,now)).fetchone()[0]
@@ -37,6 +41,7 @@ class Linking:
         return token
 
     async def challenge(self,token,wallet,now=None):
+        self.require_wallet_site()
         address(wallet); now=time.time() if now is None else now
         hashed=token_hash(token)
         def issue(c):
@@ -53,6 +58,7 @@ class Linking:
         return await self.store.run(issue)
 
     async def verify(self,token,wallet,signature,now=None):
+        self.require_wallet_site()
         now=time.time() if now is None else now; address(wallet); hashed=token_hash(token)
         rows=await self.store.query('SELECT * FROM sessions WHERE token=?',(hashed,))
         if not rows: raise ValueError('Connection session was not found.')
