@@ -69,3 +69,7 @@ Python 3.12 was used for release validation. Python 3.11+ is required; other Pyt
 ## Bot boundaries
 
 Gate continues to own CAPTCHA entry and the ordinary Rippers role. Crew owns moderation/support. Raffle uses the resulting qualifying roles through its existing role eligibility rules. Verifier does not grant OG, staff roles, claimable notification roles, tickets, or moderation punishments. It does not edit other bots' channels. Optional channel setup creates only unset verifier channels. Future capabilities need a reviewed adapter or feature module; the bot cannot automatically understand an undocumented contract.
+
+## Connection methods
+
+Wallet connection is optional and disabled for new servers. A trusted platform account link plus authenticated platform balances can verify token holdings without connecting a wallet. This requires the team account login/callback and API described in API_CONTRACT.md; a balance or wallet address entered by a member is not proof of ownership. The separate wallet method requires its HTTPS connection site and a signed ownership challenge. `PUBLIC_URL` may stay blank for installation and platform-only verification.

@@ -30,7 +30,7 @@ Ubuntu 24.04 / Debian with Python 3.11+ and systemd is the intended deployment e
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3 python3-venv python3-pip ca-certificates curl nginx certbot python3-certbot-nginx
+sudo apt-get install -y python3 python3-venv python3-pip ca-certificates curl
 python3 --version
 cd /tmp
 sha256sum --check --ignore-missing RIPCARS_VERIFIER_SHA256SUMS.txt
@@ -42,7 +42,7 @@ sudo bash scripts/install.sh
 
 The installer builds a fresh virtual environment, installs exact runtime pins, runs the full suite, validates the environment, and then switches the verifier's `current` symlink. Failed staging leaves the current release active. Updates create an encrypted full backup before switching code. The installer does not replace the shared coordination database.
 
-On the first installation, secret prompts open automatically. Enter the bot token and the real HTTPS origin, for example `https://verify.ripcars.io` **only if your team controls and configures that DNS name**. RPC/DAS/backend values can stay blank initially. Enter generates independent webhook secrets and a backup password when they are absent. Secrets are saved only in `/etc/ripcars-verifier.env`, mode 600.
+On the first installation, secret prompts open automatically. Enter the bot token. Leave `PUBLIC_URL` blank unless you are enabling the optional signed-wallet connection site. Platform account verification does not require a wallet connection domain. If wallet linking is chosen later, supply a real HTTPS origin whose DNS and proxy your team controls. RPC/DAS/backend values can stay blank initially. Enter generates independent webhook secrets and a backup password when they are absent. Secrets are saved only in `/etc/ripcars-verifier.env`, mode 600.
 
 Keep a secure separate copy of this file, especially `BACKUP_PASSWORD`. Existing credentials are preserved during an update. A generated secret must be shared with the backend through your team's secret manager before that feature is enabled.
 
@@ -63,11 +63,14 @@ Keep a secure separate copy of this file, especially `BACKUP_PASSWORD`. Existing
 
 The shared folder must have group `ripcars-bots` and setgid group write access. Existing file owners are preserved. A wrong existing group stops installation for review. See COORDINATION.md. Ensure port 8092 is free; changing it also requires updating nginx.
 
-## 5. HTTPS
+## 5. Optional wallet connection site
+
+Skip this section for platform account verification or an initial installation without wallet linking. Both connection methods start disabled; choose only the methods you need. Backend account callbacks still need an authenticated transport route arranged with your platform team; installing the bot does not create that integration.
 
 Point the chosen DNS hostname to this VPS. Port 80 must be reachable for certificate issuance; port 443 serves the connection site. Port 8092 stays on loopback and should not be opened publicly. Use a separate hostname so existing websites and reverse proxies retain their routes.
 
 ```bash
+sudo apt-get install -y nginx certbot python3-certbot-nginx
 cd /opt/ripcars-verifier/current
 read -r -p 'Verifier DNS hostname: ' verifier_domain
 read -r -p 'Certificate contact email: ' verifier_email

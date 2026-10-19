@@ -21,10 +21,10 @@ Channel selectors retain the selected numeric ID after saving. Each selected cha
 
 ## First installation
 
-1. Deploy the service and HTTPS connection site using DEPLOYMENT.md.
+1. Deploy the service using DEPLOYMENT.md. An HTTPS wallet connection site is needed only if you choose wallet linking.
 2. **Channels and access:** choose Gate's ordinary Rippers role. Importing it from the shared registry avoids duplicate member roles. Do not choose OG or a staff role.
 3. Choose an existing member-visible connection text channel and a staff-only log channel. Optionally choose the pack channel. Or use **Overview → Create unset verifier channels** with temporary Manage Channels permission.
-4. **Connections:** enable wallet linking. Enable website linking only when the team-approved login page and signed backend callback exist. Both methods are optional independently.
+4. **Connections:** choose account linking, wallet linking, or both. Enable account linking only when the team-approved login page and signed backend callback exist. Enable wallet linking only when its HTTPS site is configured. Both start disabled; platform account verification does not require wallet linking.
 5. **Data sources / Deposit tracking:** enable only implemented, configured integrations. Use the decision table below.
 6. **Assets and role rules:** define separate qualifying roles. Choose **Create and bind qualifying roles** while paused. Existing names are never automatically adopted; enter the exact role ID to adopt explicitly. Place roles below the bot and give them zero server permission bits.
 7. **Overview → Publish connection panel**. Posting updates the existing bot-owned message. A deleted/uncertain panel requires explicit reset and channel review; it is not silently duplicated.
