@@ -32,8 +32,9 @@ def validate_env(env):
     if sys.version_info<(3,11): errors.append('Python 3.11 or newer is required.')
     token=env.get('DISCORD_TOKEN','')
     if len(token)<40 or token.startswith(('replace_','offline-')): errors.append('Set the actual Discord bot token.')
-    try: safe_url(env.get('PUBLIC_URL',''),origin_only=True)
-    except ValueError: errors.append('PUBLIC_URL must be the real public HTTPS origin, without a path.')
+    if env.get('PUBLIC_URL'):
+        try: safe_url(env['PUBLIC_URL'],origin_only=True)
+        except ValueError: errors.append('PUBLIC_URL must be the real public HTTPS origin, without a path.')
     if env.get('WEB_HOST','127.0.0.1') not in ('127.0.0.1','::1'): errors.append('WEB_HOST must be loopback.')
     try:
         if not 1024<=int(env.get('WEB_PORT','8092'))<=65535: raise ValueError()

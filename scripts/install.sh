@@ -47,4 +47,4 @@ systemctl daemon-reload
 systemctl enable ripcars-verifier.service
 systemctl restart ripcars-verifier.service
 systemctl --no-pager --full status ripcars-verifier.service
-echo 'Install completed. Configure HTTPS, then finish /verifier panel. New server settings start paused.'
+echo 'Install completed. Finish /verifier panel. Configure HTTPS only if you choose wallet linking. New server settings start paused.'
