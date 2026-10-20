@@ -18,6 +18,7 @@ from .helpers import DBCase, WALLET, keypair
 class WebTests(DBCase):
     async def asyncSetUp(self):
         await super().asyncSetUp(); self.secret='s'*40; self.linking=Linking(self.store,'https://verify.example.com')
+        await self.settings(wallet_linking=True)
         self.health_ok=True
         async def health(): return {'ok':self.health_ok,'database':True,'discord':self.health_ok,'worker':self.health_ok}
         self.app=build_app(self.store,self.linking,{'PLATFORM_WEBHOOK_SECRET':self.secret,'CHAIN_WEBHOOK_SECRET':self.secret},health)
@@ -64,7 +65,7 @@ class WebTests(DBCase):
         await self.settings(rip_feed=True); response=await self.signed('/api/webhooks/rip',self.rip(),secret='wrong'*8); self.assertEqual(response.status,400); self.assertEqual(await self.store.query('SELECT * FROM deliveries'),[])
     async def test_chain_hint_only_queues_and_never_credits(self):
         await self.settings(chain_webhook=True); await self.wallet(); response=await self.signed('/api/webhooks/chain',{'guild_id':1,'wallet':WALLET,'usd_amount':'999999'})
-        self.assertEqual(response.status,200); self.assertEqual(len(await self.store.query('SELECT * FROM jobs')),1); self.assertEqual(await self.store.total(1,10),0)
+        self.assertEqual(response.status,200); self.assertEqual(len(await self.store.query('SELECT * FROM jobs')),0); self.assertEqual(await self.store.total(1,10),0)
     async def test_helius_native_hint_only(self):
         await self.settings(chain_webhook=True); await self.wallet()
         response=await self.client.post('/api/webhooks/helius',json=[{'accountData':[{'account':WALLET}],'amount':9999}],headers={'Authorization':'Bearer '+self.secret}); self.assertEqual(response.status,200); self.assertEqual(await self.store.total(1,10),0)
