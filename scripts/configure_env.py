@@ -13,6 +13,19 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from scripts.preflight import KEYS, read_env, validate_env
 
 
+def write_env(target,env):
+    target=Path(target)
+    target.parent.mkdir(parents=True,exist_ok=True)
+    fd,temporary=tempfile.mkstemp(prefix='verifier-env-',dir=target.parent)
+    try:
+        with os.fdopen(fd,'w') as file:
+            for key in KEYS: file.write(key+'='+json.dumps(env.get(key,''),ensure_ascii=False)+'\n')
+            file.flush(); os.fsync(file.fileno())
+        os.chmod(temporary,0o600); os.replace(temporary,target)
+    finally:
+        if Path(temporary).exists(): Path(temporary).unlink()
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--file',default='/etc/ripcars-verifier.env'); args=parser.parse_args()
     target=Path(args.file); env=read_env(target) if target.exists() else {}
@@ -30,15 +43,7 @@ def main():
         elif generated and not env.get(key): env[key]=secrets.token_urlsafe(48)
     errors=validate_env(env)
     if errors: print('\n'.join(errors)); return 1
-    target.parent.mkdir(parents=True,exist_ok=True)
-    fd,temporary=tempfile.mkstemp(prefix='verifier-env-',dir=target.parent)
-    try:
-        with os.fdopen(fd,'w') as file:
-            for key in KEYS: file.write(key+'='+json.dumps(env.get(key,''),ensure_ascii=False)+'\n')
-            file.flush(); os.fsync(file.fileno())
-        os.chmod(temporary,0o600); os.replace(temporary,target)
-    finally:
-        if Path(temporary).exists(): Path(temporary).unlink()
+    write_env(target,env)
     print('Environment file saved with mode 600. Keep a separate secure copy of the backup password and share integration secrets only through your team secret manager.')
     return 0
 
