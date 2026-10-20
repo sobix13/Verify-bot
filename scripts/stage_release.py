@@ -17,6 +17,7 @@ def stage(source,destination,run_checks=True):
     if destination.exists(): raise ValueError('A release directory already exists. Choose a new candidate path.')
     if source==destination or source in destination.parents: raise ValueError('Stage outside the source tree.')
     shutil.copytree(source,destination,ignore=shutil.ignore_patterns('.git','.env','.venv','__pycache__','*.pyc','data','backups','releases','dist'))
+    destination.chmod(0o755)
     venv.create(destination/'.venv',with_pip=True,symlinks=True)
     python=destination/'.venv/bin/python'
     subprocess.run([str(python),'-m','pip','install','--disable-pip-version-check','-r',str(destination/'requirements-lock.txt')],cwd=destination,check=True)

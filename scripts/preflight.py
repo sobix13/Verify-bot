@@ -32,15 +32,16 @@ def validate_env(env):
     if sys.version_info<(3,11): errors.append('Python 3.11 or newer is required.')
     token=env.get('DISCORD_TOKEN','')
     if len(token)<40 or token.startswith(('replace_','offline-')): errors.append('Set the actual Discord bot token.')
-    try: safe_url(env.get('PUBLIC_URL',''),origin_only=True)
-    except ValueError: errors.append('PUBLIC_URL must be the real public HTTPS origin, without a path.')
+    if env.get('PUBLIC_URL'):
+        try: safe_url(env['PUBLIC_URL'],origin_only=True)
+        except ValueError: errors.append('PUBLIC_URL must be the real public HTTPS origin, without a path.')
     if env.get('WEB_HOST','127.0.0.1') not in ('127.0.0.1','::1'): errors.append('WEB_HOST must be loopback.')
     try:
         if not 1024<=int(env.get('WEB_PORT','8092'))<=65535: raise ValueError()
     except ValueError: errors.append('WEB_PORT must be an unprivileged port from 1024 to 65535.')
     for key in ('DATABASE_PATH','COORDINATION_PATH','BACKUP_PATH'):
         if not env.get(key) or not Path(env[key]).is_absolute(): errors.append(key+' must be an absolute path.')
-    if env.get('DATABASE_PATH')==env.get('COORDINATION_PATH'): errors.append('Private database and shared coordination must be different files.')
+    if env.get('DATABASE_PATH') and env.get('COORDINATION_PATH') and Path(env['DATABASE_PATH']).resolve()==Path(env['COORDINATION_PATH']).resolve(): errors.append('Private database and shared coordination must be different files.')
     if len(env.get('BACKUP_PASSWORD',''))<20: errors.append('Set a backup password of at least 20 characters.')
     for key in ('RPC_URL','RPC_FALLBACK_URL','DAS_URL','PLATFORM_API_URL'):
         if env.get(key):

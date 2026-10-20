@@ -22,7 +22,8 @@ def main():
         hidden=key not in ('PUBLIC_URL','TEST_GUILD_ID')
         generated=key in ('PLATFORM_WEBHOOK_SECRET','CHAIN_WEBHOOK_SECRET','BACKUP_PASSWORD')
         state='set' if env.get(key) else 'not set'
-        prompt=key+' ['+state+(' ; Enter generates a value' if generated and not env.get(key) else '')+']: '
+        label=key+(' (optional; only for wallet connection)' if key=='PUBLIC_URL' else '')
+        prompt=label+' ['+state+(' ; Enter generates a value' if generated and not env.get(key) else '')+']: '
         value=getpass.getpass(prompt) if hidden else input(prompt).strip()
         if value=='-': env[key]=''
         elif value: env[key]=value
