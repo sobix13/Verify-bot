@@ -167,3 +167,5 @@ sudo systemctl start ripcars-verifier
 ```
 
 For multiple Discord servers, restore a **full VPS backup** to replace the whole instance. A server-only Discord backup must be reviewed in an isolated instance or merged using a reviewed tenant migration; replacing a multi-server database with it would omit other servers. The shared registry stays external and is not restored over Gate/Crew/Raffle ownership. Re-run Doctor, bind/review roles and channel selections, resolve announcement reviews, then activate explicitly.
+
+For token-holder verification without a wallet connection website, use the targeted [RPC and self-transfer setup](SELF_TRANSFER_SETUP.md) after installation. Do not configure PUBLIC_URL for that method.

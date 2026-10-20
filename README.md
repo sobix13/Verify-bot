@@ -1,8 +1,8 @@
 # Ripcars Verifier
 
-Current validation: [225 passing tests and verification limits](VALIDATION_1.1.0.md). The current refresh policy is documented in [ADMIN_GUIDE.md](ADMIN_GUIDE.md).
+Current validation: [self-transfer tests and verification limits](VALIDATION_1.2.0.md). The current refresh policy is documented in [ADMIN_GUIDE.md](ADMIN_GUIDE.md).
 
-Version **1.1.0**. A separate Discord bot for verified Rip Cars connections, qualifying roles, deposit points, and pack-opening announcements. Project website: [app.ripcars.io](https://app.ripcars.io).
+Version **1.2.0**. A separate Discord bot for verified Rip Cars connections, qualifying roles, deposit points, and pack-opening announcements. Project website: [app.ripcars.io](https://app.ripcars.io).
 
 Historical 1.0.1 install packages and checksums: [releases/1.0.1](releases/1.0.1). Four-bot release matrix, upgrade order and read-only coordination checker: [SUITE_DEPLOYMENT.md](SUITE_DEPLOYMENT.md). Latest suite test evidence: [SUITE_TEST_RESULTS.txt](SUITE_TEST_RESULTS.txt).
 
@@ -12,7 +12,7 @@ All bot messages, configuration examples, source comments, and guides are Englis
 
 | Feature | Available method | Setup requirement |
 | --- | --- | --- |
-| Wallet ownership | Expiring server-issued Ed25519 message; Phantom, Solflare, compatible injected Solana wallet | Verifier HTTPS connection site |
+| Wallet ownership | Optional finalized self-transfer proof, or expiring signed message | RPC and official mint for self-transfer; HTTPS site only for website signing |
 | Website account connection | Signed attestation from an authenticated Rip Cars backend session | Team backend integration |
 | Current $CARS balance | Finalized Solana RPC or authenticated backend snapshot | Verified mint or backend contract |
 | Current Hot Wheels assets | DAS inventory for approved collections, or backend snapshot | Verified collections or backend contract |
@@ -21,7 +21,7 @@ All bot messages, configuration examples, source comments, and guides are Englis
 | Qualifying roles | Any supported metric, exact thresholds, asset IDs, collection, or exact traits | Dedicated zero-permission roles |
 | Pack announcements | Signed `rip.opened` event; car name, optional image and asset link | Backend integration; chosen channel |
 | Refresh | Qualified wallets every 12 hours; member wallet refresh; platform points only on initial verification or admin-requested batches | Enabled data sources |
-| Administration | Ten organized Discord sections, guides, diagnostics, settings revisions and imports | Manage Server or Administrator |
+| Administration | Organized Discord sections, guides, diagnostics, settings revisions and imports | Manage Server or Administrator |
 | Backups | Encrypted server-only Discord export and complete daily VPS backup | Protected backup password |
 | Coordination | Shared resource registry and setup lease; manual overrides preserved | Same coordination path as Gate/Crew/Raffle |
 
@@ -74,4 +74,8 @@ Gate continues to own CAPTCHA entry and the ordinary Rippers role. Crew owns mod
 
 ## Connection methods
 
-Wallet connection is optional and disabled for new servers. A trusted platform account link plus authenticated platform balances can verify token holdings without connecting a wallet. This requires the team account login/callback and API described in API_CONTRACT.md; a balance or wallet address entered by a member is not proof of ownership. The separate wallet method requires its HTTPS connection site and a signed ownership challenge. `PUBLIC_URL` may stay blank for installation and platform-only verification.
+Self-transfer verification is optional and works through RPC without a wallet website or platform account. Website wallet connection is also optional and disabled for new servers. A trusted platform account link plus authenticated platform balances can verify token holdings without connecting a wallet. This requires the team account login/callback and API described in API_CONTRACT.md; a balance or wallet address entered by a member is not proof of ownership. The separate wallet method requires its HTTPS connection site and a signed ownership challenge. `PUBLIC_URL` may stay blank for installation and platform-only verification.
+
+## Verify token holders without a wallet connection
+
+See [Self-transfer and RPC setup](SELF_TRANSFER_SETUP.md). Open `/verifier panel > Token holder setup` for the guided checklist. RPC credentials stay on the VPS. This optional method needs no wallet connection site or platform account. Existing connection methods remain available.

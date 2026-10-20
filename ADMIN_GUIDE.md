@@ -128,3 +128,7 @@ All server settings can be exported, edited, and imported inside Discord with `/
 Complete Gate → open connection panel → Connect wallet/account → authenticate/sign → return to My status. Refresh is limited to once per minute and coalesces queued work. Disconnect is private and owner-bound. Up to three wallets are allowed by default; admins can change the limit.
 
 Wallet-only users need Phantom, Solflare, a compatible injected wallet, or its mobile wallet browser. This release does not include a hosted WalletConnect/mobile deep-link service. A user without a compatible wallet can use website account linking if the team supplies that flow.
+
+## Self-transfer verification in 1.2.0
+
+Use **Token holder setup** for the optional no-website wallet proof and the targeted RPC credential tool. Follow [SELF_TRANSFER_SETUP.md](SELF_TRANSFER_SETUP.md). The new method starts off, preserves existing identities and is independent of platform points.
