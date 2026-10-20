@@ -20,6 +20,13 @@ async def probe_sources(bot,guild,cfg):
             rpc=Rpc(bot.provider_http,bot.env.get('RPC_URL',''),bot.env.get('RPC_FALLBACK_URL',''))
             if await rpc.call('getHealth',[])!='ok': raise ProviderError('RPC is not healthy.')
             if cfg['balance_mode']=='rpc':
+                if cfg.get('wallet_transfer'):
+                    from .transfer_proof import mint_details
+                    await mint_details(rpc,cfg['mint'])
+                    slot=await rpc.call('getSlot',[{'commitment':'finalized'}])
+                    if type(slot) is not int or slot<0: raise ProviderError('RPC returned an invalid slot.')
+                    # A null result is valid for this absent signature; an RPC method error is not.
+                    await rpc.call('getTransaction',['1'*64,{'encoding':'jsonParsed','commitment':'finalized','maxSupportedTransactionVersion':0}])
                 info=await rpc.call('getAccountInfo',[cfg['mint'],{'encoding':'jsonParsed','commitment':'finalized'}])
                 account=info.get('value') if isinstance(info,dict) else None
                 if not account or account.get('owner') not in (TOKEN_PROGRAM,TOKEN_2022) or account.get('data',{}).get('parsed',{}).get('type')!='mint':

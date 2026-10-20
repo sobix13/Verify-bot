@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT,guild INTE
 CREATE TABLE IF NOT EXISTS links(guild INTEGER NOT NULL,user INTEGER NOT NULL,kind TEXT NOT NULL,identity TEXT NOT NULL,active INTEGER NOT NULL,created REAL NOT NULL,PRIMARY KEY(guild,kind,identity));
 CREATE INDEX IF NOT EXISTS links_user ON links(guild,user,active);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,guild INTEGER NOT NULL,user INTEGER NOT NULL,purpose TEXT NOT NULL,expires REAL NOT NULL,message TEXT,wallet TEXT,used INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS transfer_proofs(id TEXT PRIMARY KEY,guild INTEGER NOT NULL,user INTEGER NOT NULL,wallet TEXT NOT NULL,mint TEXT NOT NULL,program TEXT NOT NULL,decimals INTEGER NOT NULL,raw_amount TEXT NOT NULL,slot INTEGER NOT NULL,created REAL NOT NULL,expires REAL NOT NULL,used INTEGER NOT NULL DEFAULT 0,signature TEXT NOT NULL DEFAULT '',next_check REAL NOT NULL DEFAULT 0);
+CREATE UNIQUE INDEX IF NOT EXISTS transfer_proof_wallet ON transfer_proofs(guild,wallet) WHERE used=0;
+CREATE UNIQUE INDEX IF NOT EXISTS transfer_proof_user ON transfer_proofs(guild,user) WHERE used=0;
+CREATE UNIQUE INDEX IF NOT EXISTS transfer_proof_signature ON transfer_proofs(signature) WHERE signature<>'';
 CREATE TABLE IF NOT EXISTS ledger(guild INTEGER NOT NULL,event_id TEXT NOT NULL,user INTEGER NOT NULL,wallet TEXT NOT NULL,usd_micros INTEGER NOT NULL,source TEXT NOT NULL,proof TEXT NOT NULL,created REAL NOT NULL,PRIMARY KEY(guild,event_id));
 CREATE INDEX IF NOT EXISTS ledger_user ON ledger(guild,user);
 CREATE TABLE IF NOT EXISTS observations(guild INTEGER NOT NULL,wallet TEXT NOT NULL,signature TEXT NOT NULL,status TEXT NOT NULL,detail TEXT NOT NULL,created REAL NOT NULL,PRIMARY KEY(guild,wallet,signature));
@@ -101,7 +105,8 @@ class Store:
             row=c.execute('SELECT * FROM settings WHERE guild=?',(guild,)).fetchone()
             if not row:
                 cfg=defaults(); c.execute('INSERT INTO settings VALUES(?,1,?)',(guild,canonical(cfg))); return cfg,1
-            return json.loads(row['value']),row['revision']
+            cfg=json.loads(row['value']);cfg.setdefault('wallet_transfer',False)
+            return cfg,row['revision']
         return await self.run(get)
 
     async def save_settings(self,guild,cfg,revision,actor):
@@ -150,12 +155,16 @@ class Store:
             if scope=='hint':
                 active=c.execute('SELECT active FROM monitoring WHERE guild=? AND user=?',(guild,user)).fetchone()
                 if not active or not active['active']:return False
-            old=c.execute('SELECT * FROM job_requests WHERE guild=? AND user=?',(guild,user)).fetchone()
-            requested=kinds|set(json.loads(old['kinds'])) if old else kinds
-            c.execute('INSERT INTO job_requests VALUES(?,?,?,1) ON CONFLICT(guild,user) DO UPDATE SET kinds=excluded.kinds,version=version+1',(guild,user,canonical(sorted(requested))))
-            c.execute('INSERT INTO jobs(guild,user,next_run) VALUES(?,?,?) ON CONFLICT(guild,user) DO UPDATE SET next_run=MIN(jobs.next_run,excluded.next_run)',(guild,user,time.time() if when is None else when))
+            self.queue_check(c,guild,user,kinds,time.time() if when is None else when)
             return True
         return await self.run(queue)
+
+    @staticmethod
+    def queue_check(c,guild,user,kinds,when):
+        old=c.execute('SELECT * FROM job_requests WHERE guild=? AND user=?',(guild,user)).fetchone()
+        requested=kinds|set(json.loads(old['kinds'])) if old else kinds
+        c.execute('INSERT INTO job_requests VALUES(?,?,?,1) ON CONFLICT(guild,user) DO UPDATE SET kinds=excluded.kinds,version=version+1',(guild,user,canonical(sorted(requested))))
+        c.execute('INSERT INTO jobs(guild,user,next_run) VALUES(?,?,?) ON CONFLICT(guild,user) DO UPDATE SET next_run=MIN(jobs.next_run,excluded.next_run)',(guild,user,when))
 
     async def member_refresh(self,guild,user,now=None):
         now=time.time() if now is None else now
@@ -205,9 +214,10 @@ class Store:
                     src.backup(dst)
                     if guild is not None:
                         dst.execute('DELETE FROM point_batch_members WHERE batch IN (SELECT id FROM point_batches WHERE guild<>?)',(guild,))
-                        for table in ('settings','audit','links','sessions','ledger','observations','checkpoints','snapshots','jobs','role_grants','deliveries','monitoring','job_requests','point_batches'):
+                        for table in ('settings','audit','links','sessions','transfer_proofs','ledger','observations','checkpoints','snapshots','jobs','role_grants','deliveries','monitoring','job_requests','point_batches'):
                             dst.execute(f'DELETE FROM {table} WHERE guild<>?',(guild,))
                         dst.execute('DELETE FROM sessions')
+                        dst.execute('DELETE FROM transfer_proofs WHERE used<>1')
                         dst.execute('DELETE FROM webhook_ids')
                         dst.commit()
                     if dst.execute('PRAGMA integrity_check').fetchone()[0]!='ok': raise Conflict('Backup integrity check failed.')

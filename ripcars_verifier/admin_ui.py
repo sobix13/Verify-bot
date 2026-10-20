@@ -12,6 +12,7 @@ from .operations import attachment,authorized,doctor,reply
 SECTIONS={
  'overview':('Overview','Choose channels and data sources, review role rules, publish the connection panel, then run Doctor and activate. Each feature stays optional.'),
  'connections':('Connections','Wallet links use a signed, expiring message. Rip Cars account links require a team backend attestation. The public URL and credentials live in the VPS environment file.'),
+ 'holders':('Token holder setup','Verify wallet ownership with a self-transfer, then check token balances through Solana RPC. This needs no wallet website or platform account. The owner must sign the transaction.'),
  'sources':('Data sources','Choose the source for current token balance, assets and platform points. RPC is for SPL balances. DAS is for verified NFT collections. Platform reads the documented backend bridge.'),
  'deposits':('Deposit tracking','Choose one authoritative ledger source. RPC counts finalized SPL transfers into verified destinations. Add multiple programs and treasuries in the source list. Fees, withdrawals, buybacks and internal transfers do not earn deposit points.'),
  'roles':('Assets and role rules','Create or bind separate zero-permission qualifying roles. Rules use deposit points, platform points, token balance or assets filtered by ID, collection or exact attributes. OG stays manual.'),
@@ -36,8 +37,17 @@ class AdminPanel(discord.ui.View):
             self.button('Create unset verifier channels',self.prepare_channels,3)
         elif section=='connections':
             self.toggle('wallet_linking','Wallet linking',1); self.toggle('account_linking','Account linking',1)
+            self.button('Token holder setup',lambda i:self.render(i,'holders'),3)
             self.button('Edit account connect URL',lambda i:self.modal(i,'platform_connect_url','Team account connect URL'),2)
             self.button('Edit wallet limit',lambda i:self.modal(i,'max_wallets','Maximum wallets per member'),2)
+        elif section=='holders':
+            self.button('RPC setup instructions',self.rpc_guide,1)
+            self.button('Edit $CARS mint',lambda i:self.modal(i,'mint','$CARS mint'),1)
+            self.mode('balance_mode',['off','rpc','platform'],'Token balance source',2)
+            self.toggle('wallet_transfer','Self-transfer verification',3)
+            self.button('Check RPC connection',self.probe,3)
+            self.button('Set qualifying roles',lambda i:self.render(i,'roles'),4)
+            self.button('Publish verification panel',self.publish,4)
         elif section=='sources':
             self.mode('balance_mode',['off','rpc','platform'],'Token balance source',1)
             self.mode('asset_mode',['off','das','platform'],'Asset source',2)
@@ -110,6 +120,12 @@ class AdminPanel(discord.ui.View):
             result.add_field(name='Methods',value=f'Token balance: {self.cfg["balance_mode"]}\nAssets: {self.cfg["asset_mode"]}\nDeposits: {self.cfg["deposit_mode"]}\nRole rules: {len(self.cfg["rules"])}',inline=False)
         if self.section=='channels':
             result.add_field(name='Selected IDs',value='\n'.join(f'{k}: {self.cfg[k] or "not selected"}' for k in ('member_role','verification_channel','rip_channel','log_channel')),inline=False)
+        if self.section=='holders':
+            result.add_field(name='Connection status',value=(
+                'Main RPC: '+('configured' if self.bot.env.get('RPC_URL') else 'not configured')+
+                '\nBackup RPC: '+('configured' if self.bot.env.get('RPC_FALLBACK_URL') else 'not configured')+
+                '\nOfficial token mint: '+(self.cfg['mint'] or 'not selected')+
+                '\nNext: set RPC, enter the mint, select rpc, enable self-transfer verification, set roles and check the connection.'),inline=False)
         return result
 
     async def render(self,i,section=None):
@@ -122,7 +138,7 @@ class AdminPanel(discord.ui.View):
         await authorized(self.bot,i,True)
         cfg=copy.deepcopy(self.cfg); cfg[key]=value
         # A source change pauses live role application until the admin reviews Doctor.
-        if key in ('member_role','verification_channel','log_channel','mint','sources','collections','rules','balance_mode','asset_mode','deposit_mode','platform_points','platform_connect_url'): cfg['enabled']=False
+        if key in ('member_role','verification_channel','log_channel','mint','wallet_transfer','sources','collections','rules','balance_mode','asset_mode','deposit_mode','platform_points','platform_connect_url'): cfg['enabled']=False
         await self.bot.db.save_settings(i.guild_id,cfg,self.revision,i.user.id)
         await self.render(i)
 
@@ -132,6 +148,14 @@ class AdminPanel(discord.ui.View):
             return await reply(i,'This setting exceeds one Discord form. Export settings, edit its JSON, then use /verifier import_settings with the file.')
         await i.response.send_modal(EditModal(self,key,label,value))
     async def text_modal(self,i,key): await i.response.send_modal(EditModal(self,'texts.'+key,'Public '+key,self.cfg['texts'][key]))
+
+    async def rpc_guide(self,i):
+        await reply(i,'Get the official token mint and a Solana mainnet HTTPS RPC URL from your team or provider. '
+                    'The mint is public. Keep provider keys on the VPS.\n\nRun as root on the VPS:\n'
+                    '```/opt/ripcars-verifier/current/.venv/bin/python /opt/ripcars-verifier/current/scripts/configure_rpc.py```'
+                    'This prompts only for main and optional backup RPC URLs, tests them, and preserves other credentials. '
+                    'Restart ripcars-verifier.service after saving. Reopen this panel, enter the mint and select rpc. '
+                    'Self-transfer verification needs no PUBLIC_URL or platform API. Never enter seed phrases or private keys.')
 
     async def doctor(self,i):
         await i.response.defer(ephemeral=True); cfg,_=await authorized(self.bot,i,True)
@@ -213,7 +237,7 @@ class AdminPanel(discord.ui.View):
         rows=await self.bot.db.query("SELECT id,actor,created FROM audit WHERE guild=? AND action='settings' ORDER BY id DESC LIMIT 30",(i.guild_id,))
         await reply(i,file=attachment('verifier-revisions.json',rows))
     async def guide(self,i):
-        await reply(i,'1. Deploy Verifier and its HTTPS link page.\n2. Select the Gate role and text channels.\n3. Enable only the connections and data sources you need.\n4. Add verified mints, collections and deposit sources.\n5. Define and create/bind separate qualifying roles.\n6. Publish the connection panel.\n7. Run Doctor, fix its blockers, and activate.\n8. Test with a non-admin member.\n\nUse /verifier health, /verifier doctor, /verifier import_settings and /verifier review_delivery for operations. Full install and API contracts are included in the release guides.')
+        await reply(i,'1. Install Verifier. Choose Token holder setup for self-transfer proof; an HTTPS site is needed only for website wallet linking.\n2. Select the Gate role and text channels.\n3. Enable only the connection methods and data sources you need. Self-transfer verification needs no platform account.\n4. Add verified mints, collections and deposit sources.\n5. Define and create/bind separate qualifying roles.\n6. Publish the connection panel.\n7. Run Doctor, fix its blockers, and activate.\n8. Test with a non-admin member.\n\nUse /verifier health, /verifier doctor, /verifier import_settings and /verifier review_delivery for operations. Full install and API contracts are included in the release guides.')
     async def on_error(self,i,error,item):
         await reply(i,str(error) if isinstance(error,ValueError) else 'This action failed. Its error ID is in the private log. Reopen /verifier panel before retrying.')
         if not isinstance(error,ValueError): await self.bot.reporter.error(i.guild,'admin panel',error)

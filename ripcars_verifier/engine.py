@@ -17,6 +17,8 @@ from .storage import Conflict
 def readiness(cfg,env):
     blockers=[]
     if cfg['wallet_linking'] and not env.get('PUBLIC_URL'): blockers.append('Set PUBLIC_URL to the verifier HTTPS origin on the VPS.')
+    if cfg.get('wallet_transfer') and (cfg['balance_mode']!='rpc' or not cfg['mint']):
+        blockers.append('Self-transfer verification needs Token balance source: rpc and the official token mint.')
     if not cfg['member_role']: blockers.append('Choose the Gate member role.')
     if not cfg['verification_channel']: blockers.append('Choose the connection panel channel.')
     if not cfg['public_message']: blockers.append('Publish the connection panel before activation.')

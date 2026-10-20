@@ -21,6 +21,16 @@ def token_hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def bind_wallet(c,guild,user,wallet,maximum,now):
+    old=c.execute("SELECT * FROM links WHERE guild=? AND kind='wallet' AND identity=?",(guild,wallet)).fetchone()
+    if old and old['user']!=user:
+        raise Conflict('This wallet belongs to another Discord connection. It is not reassigned automatically.')
+    count=c.execute("SELECT COUNT(*) FROM links WHERE guild=? AND user=? AND kind='wallet' AND active=1",(guild,user)).fetchone()[0]
+    if not (old and old['active']) and count>=maximum:
+        raise ValueError('Wallet limit reached. Disconnect an existing wallet first.')
+    c.execute("INSERT INTO links VALUES(?,?,'wallet',?,1,?) ON CONFLICT(guild,kind,identity) DO UPDATE SET active=1",(guild,user,wallet,now))
+
+
 class Linking:
     def __init__(self,store,public_url):
         self.store=store; self.origin=safe_url(public_url,origin_only=True) if public_url else ''
@@ -76,11 +86,7 @@ class Linking:
         def bind(c):
             current=c.execute('SELECT * FROM sessions WHERE token=?',(hashed,)).fetchone()
             if current['used'] or current['expires']<=now or current['message']!=row['message']: raise Conflict('Connection changed. Create a new link.')
-            old=c.execute("SELECT * FROM links WHERE guild=? AND kind='wallet' AND identity=?",(row['guild'],wallet)).fetchone()
-            if old and old['user']!=row['user']: raise Conflict('This wallet belongs to another Discord connection. It is not reassigned automatically.')
-            count=c.execute("SELECT COUNT(*) FROM links WHERE guild=? AND user=? AND kind='wallet' AND active=1",(row['guild'],row['user'])).fetchone()[0]
-            if not (old and old['active']) and count>=cfg['max_wallets']: raise ValueError('Wallet limit reached. Disconnect an existing wallet first.')
-            c.execute("INSERT INTO links VALUES(?,?,'wallet',?,1,?) ON CONFLICT(guild,kind,identity) DO UPDATE SET active=1",(row['guild'],row['user'],wallet,now))
+            bind_wallet(c,row['guild'],row['user'],wallet,cfg['max_wallets'],now)
             c.execute('UPDATE sessions SET used=1 WHERE token=?',(hashed,))
             return row['guild'],row['user']
         result=await self.store.run(bind); await self.store.enqueue(*result,scope='wallet'); return result

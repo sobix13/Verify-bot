@@ -13,6 +13,7 @@ from aiohttp import web
 from discord.ext import commands
 
 from .auth import Linking
+from .transfer_proof import TransferProof
 from .backups import create_backup
 from .config import safe_url,wallet_kinds,account_kinds,role_metric,decimal
 from .coordination import Registry
@@ -44,6 +45,7 @@ class Verifier(commands.Bot):
         super().__init__(command_prefix=commands.when_mentioned,intents=intents,allowed_mentions=discord.AllowedMentions.none())
         self.db=Store(self.env['DATABASE_PATH']); self.registry=Registry(self.env['COORDINATION_PATH']); self.provider_http=Http(lambda:setattr(self,'worker_tick',time.monotonic()))
         self.linking=Linking(self.db,self.env.get('PUBLIC_URL','')); self.engine=Engine(self.db,self.provider_http,self.env)
+        self.transfer_proof=TransferProof(self.db,self.provider_http,self.env)
         self.reporter=Reporter(self); self.tasks=[]; self.runner=None; self.started=time.monotonic(); self.worker_tick=time.monotonic(); self.backup_day=''; self.bot_ready=False
         from .commands import VerifierCommands
         self.tree.add_command(VerifierCommands(self))
@@ -149,6 +151,7 @@ class Verifier(commands.Bot):
             # The member view keeps persistent IDs, but optional buttons are hidden when skipped.
             for child in list(view.children):
                 if child.custom_id=='rcv:wallet:v1' and not cfg['wallet_linking']: view.remove_item(child)
+                if child.custom_id=='rcv:transfer:v1' and not cfg['wallet_transfer']: view.remove_item(child)
                 if child.custom_id=='rcv:account:v1' and not cfg['account_linking']: view.remove_item(child)
             if cfg['public_message']:
                 try: message=await channel.fetch_message(cfg['public_message'])

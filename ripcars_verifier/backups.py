@@ -66,6 +66,8 @@ def restore_backup(file,target,password):
                 cfg=json.loads(value); cfg['enabled']=False
                 c.execute('UPDATE settings SET value=?,revision=revision+1 WHERE guild=?',(json.dumps(cfg),guild))
             c.execute('DELETE FROM sessions')
+            if c.execute("SELECT 1 FROM sqlite_master WHERE name='transfer_proofs' AND type='table'").fetchone():
+                c.execute('UPDATE transfer_proofs SET used=-1 WHERE used=0')
             c.execute("UPDATE deliveries SET state='review' WHERE state IN ('pending','sending','review')")
             c.execute('UPDATE jobs SET next_run=0')
             c.commit()
