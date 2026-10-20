@@ -34,5 +34,6 @@
     "title": "Connect to Rip Cars",
     "description": "Connect your wallet or Rip Cars account to check your collection and qualifying roles. Use My status to see your last check.",
     "rip_title": "A new car was pulled"
-  }
+  },
+  "wallet_transfer": false
 }

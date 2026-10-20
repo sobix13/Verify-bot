@@ -15,3 +15,5 @@ All values here are illustrative unless expressly identified as a public standar
 Settings imports are complete schema files, not partial patches. Importing forces Verifier paused and preserves its existing panel message binding. JSON IDs must remain exact; use a text editor rather than a spreadsheet that rounds snowflakes. API `guild_id` also supports an exact decimal string for JavaScript senders.
 
 Rules in the role template are disabled and have role ID 0. Select supported real data methods, verify exact model attributes with the team, enable only needed rules, then create/bind their separate safe roles through the Discord panel. Source switching after credits requires an audited migration.
+
+`settings-self-transfer.json` is a paused template for RPC token balances and self-transfer ownership proofs. Replace the placeholder mint and select actual channels/roles. It needs no PUBLIC_URL or platform API.
