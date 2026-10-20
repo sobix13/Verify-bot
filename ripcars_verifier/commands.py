@@ -9,7 +9,7 @@ from discord import app_commands
 from .admin_ui import AdminPanel
 from .config import validate, canonical
 from .member_ui import MemberPanel
-from .operations import attachment,authorized,doctor,reply,safe_role
+from .operations import acknowledge,attachment,authorized,doctor,reply,safe_role
 
 
 @app_commands.guild_only()
@@ -25,7 +25,7 @@ class VerifierCommands(app_commands.Group):
     @app_commands.command(description='Create only unset verifier channels with Gate member and staff access')
     @app_commands.default_permissions(manage_guild=True)
     async def prepare_channels(self,i:discord.Interaction):
-        await authorized(self.bot,i,True); await i.response.defer(ephemeral=True)
+        await authorized(self.bot,i,True); await acknowledge(i)
         await self.bot.prepare_channels(i.guild,i.user.id)
         await reply(i,'Unset verifier channels were created. Existing selected channels were preserved. Review Channels and Doctor before activation.')
 
@@ -36,14 +36,14 @@ class VerifierCommands(app_commands.Group):
     @app_commands.command(description='Check permissions, configuration and activation blockers')
     @app_commands.default_permissions(manage_guild=True)
     async def doctor(self,i:discord.Interaction):
-        await authorized(self.bot,i,True); await i.response.defer(ephemeral=True)
+        await authorized(self.bot,i,True); await acknowledge(i)
         blockers,notes=await doctor(self.bot,i.guild)
         await reply(i,('Ready.' if not blockers else 'Fix before activating:\n'+'\n'.join(blockers))[:1900],file=attachment('verifier-doctor.json',{'blockers':blockers,'notes':notes}))
 
     @app_commands.command(description='Read configured providers and check the public HTTPS connection site')
     @app_commands.default_permissions(manage_guild=True)
     async def probe(self,i:discord.Interaction):
-        cfg,_=await authorized(self.bot,i,True); await i.response.defer(ephemeral=True)
+        cfg,_=await authorized(self.bot,i,True); await acknowledge(i)
         from .probes import probe_sources
         checks=await probe_sources(self.bot,i.guild_id,cfg)
         await reply(i,'\n'.join(c['source']+': '+('passed' if c['ok'] else c['detail']) for c in checks)[:1900] or 'No external data sources are enabled.',file=attachment('verifier-provider-checks.json',checks))
@@ -63,17 +63,14 @@ class VerifierCommands(app_commands.Group):
 
     @app_commands.command(description='Queue a fresh check of your verified connections')
     async def refresh(self,i:discord.Interaction):
-        cfg,_=await authorized(self.bot,i)
-        if not cfg['enabled']: raise ValueError('Verifier is paused.')
-        await self.bot.db.member_refresh(i.guild_id,i.user.id)
-        await reply(i,'Your check is queued. Open /verifier status after the next worker pass.')
+        await MemberPanel(self.bot).refresh.callback(i)
 
     @app_commands.command(description='Validate and import a settings file, leaving Verifier paused')
     @app_commands.default_permissions(manage_guild=True)
     async def import_settings(self,i:discord.Interaction,file:discord.Attachment):
         old,revision=await authorized(self.bot,i,True)
         if file.size>262144: raise ValueError('Settings file exceeds 256 KiB.')
-        await i.response.defer(ephemeral=True); cfg=json.loads(await file.read()); validate(cfg)
+        await acknowledge(i); cfg=json.loads(await file.read()); validate(cfg)
         cfg['enabled']=False; cfg['public_message']=old['public_message']
         await self.bot.db.save_settings(i.guild_id,cfg,revision,i.user.id)
         await reply(i,'Settings imported and paused. Review Channels, Roles and Doctor before reactivating.')

@@ -15,6 +15,10 @@ class ProviderError(RuntimeError):
     pass
 
 
+class RateLimited(ProviderError):
+    pass
+
+
 class PublicResolver(AbstractResolver):
     def __init__(self): self.resolver=aiohttp.resolver.ThreadedResolver()
     async def resolve(self,host,port=0,family=0):
@@ -37,13 +41,16 @@ class Http:
             if self.activity: self.activity()
             try:
                 async with self.session.request(method,url,json=payload,headers=headers,allow_redirects=False) as response:
-                    if response.status in (429,500,502,503,504): raise ProviderError('Provider is temporarily unavailable.')
+                    if response.status==429:raise RateLimited('The provider request limit was reached. Wait before retrying the update.')
+                    if response.status in (500,502,503,504): raise ProviderError('Provider is temporarily unavailable.')
                     if response.status!=200: raise ValueError(f'Provider returned HTTP {response.status}. Check its URL and credentials.')
                     body=bytearray()
                     async for chunk in response.content.iter_chunked(65536):
                         body.extend(chunk)
                         if len(body)>2*1024*1024: raise ValueError('Provider response exceeded the two-megabyte limit.')
                     return json.loads(body,parse_constant=lambda x:(_ for _ in ()).throw(ValueError('Non-finite JSON value.')))
+            except RateLimited:
+                raise
             except (aiohttp.ClientError,asyncio.TimeoutError,ProviderError):
                 if attempt==2: raise ProviderError('Provider timed out or is unavailable. Existing role state was preserved.') from None
                 await asyncio.sleep((2**attempt)+secrets.randbelow(100)/1000)

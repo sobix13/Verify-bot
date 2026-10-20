@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import os
 import time
@@ -15,7 +16,7 @@ from .storage import Conflict
 
 def readiness(cfg,env):
     blockers=[]
-    if not env.get('PUBLIC_URL'): blockers.append('Set PUBLIC_URL to the verifier HTTPS origin on the VPS.')
+    if cfg['wallet_linking'] and not env.get('PUBLIC_URL'): blockers.append('Set PUBLIC_URL to the verifier HTTPS origin on the VPS.')
     if not cfg['member_role']: blockers.append('Choose the Gate member role.')
     if not cfg['verification_channel']: blockers.append('Choose the connection panel channel.')
     if not cfg['public_message']: blockers.append('Publish the connection panel before activation.')
@@ -46,7 +47,12 @@ class Engine:
     def __init__(self,store,http,env=None):
         self.store=store; self.http=http; self.env=dict(os.environ if env is None else env); self.locks={}
 
-    async def snapshot(self,guild,user,cfg):
+    async def snapshot(self,guild,user,cfg,kinds=None):
+        if kinds is not None:
+            cfg=copy.deepcopy(cfg)
+            for kind,key in (('token_balance','balance_mode'),('asset_count','asset_mode'),('deposit_points','deposit_mode')):
+                if kind not in kinds:cfg[key]='off'
+            if 'platform_points' not in kinds:cfg['platform_points']=False
         links=await self.store.links(guild,user)
         wallets=[r['identity'] for r in links if r['kind']=='wallet']; accounts=[r['identity'] for r in links if r['kind']=='account']
         out={'wallets':wallets,'accounts':accounts,'assets':[],'deposit_points':'0','platform_points':'0','token_balance':'0','complete':{},'checked_at':time.time()}
@@ -95,14 +101,29 @@ class Engine:
         # Disconnecting an account removes holding-based eligibility, not earned deposit history.
         return out
 
-    async def refresh(self,guild,user):
+    async def refresh(self,guild,user,kinds=None):
         async with self.locks.setdefault((guild,user),asyncio.Lock()):
             cfg,revision=await self.store.settings(guild)
             if not cfg['enabled']: raise ValueError('Verifier is paused. Finish setup and activate it first.')
-            data=await self.snapshot(guild,user,cfg)
+            data=await self.snapshot(guild,user,cfg) if kinds is None else await self.snapshot(guild,user,cfg,kinds)
+            if kinds is not None:
+                previous=await self.status(guild,user) or {}
+                merged={**previous,**data,'complete':{**previous.get('complete',{}),**data['complete']}}
+                for kind in ('token_balance','platform_points','deposit_points','asset_count'):
+                    if kind not in kinds:
+                        key='assets' if kind=='asset_count' else kind
+                        if key in previous:merged[key]=previous[key]
+                merged['_checked_kinds']=sorted(kinds)
+                merged['last_success']={**previous.get('last_success',{}),**{k:data['checked_at'] for k,v in data['complete'].items() if v}}
+                data=merged
+            data['incomplete_rules']=[r['key'] for r in cfg['rules'] if r['enabled'] and role_metric(r,data) is None]
             def save(c):
                 current=c.execute('SELECT revision FROM settings WHERE guild=?',(guild,)).fetchone()[0]
                 if current!=revision: raise Conflict('Settings changed during the check. Retry with the new settings.')
+                for kind,key in [('wallet','wallets'),('account','accounts')]:
+                    if key in data:
+                        live={r[0] for r in c.execute('SELECT identity FROM links WHERE guild=? AND user=? AND kind=? AND active=1',(guild,user,kind))}
+                        if live!=set(data[key]):raise Conflict('Connections changed during the check. Retry with the current connections.')
                 c.execute('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?)',(guild,user,canonical(data),time.time()))
             await self.store.run(save)
             return data,cfg,revision
@@ -120,6 +141,8 @@ def role_plan(cfg,snapshot,current_roles,previous_grants):
         if not rule['enabled']:
             if rid in previous_grants and rid in current_roles: removals.append(rid)
             continue
+        if '_checked_kinds' in snapshot and rule['kind'] not in snapshot['_checked_kinds']:
+            preserved.append(rid);continue
         value=role_metric(rule,snapshot)
         if value is None: preserved.append(rid); continue
         qualifies=value>=decimal(rule['threshold'])

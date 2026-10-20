@@ -70,7 +70,9 @@ class AdminPanel(discord.ui.View):
                 choice.callback=selected; self.add_item(choice)
         elif section=='operations':
             self.button('Run Doctor',self.doctor,1); self.button('Create encrypted backup',self.backup,1)
-            self.button('Refresh all connected members',self.refresh_all,2)
+            self.button('Update platform points',self.refresh_all,2)
+            self.button('Update progress',self.point_progress,2)
+            self.button('Retry failed updates',self.retry_points,2)
             self.button('Edit check interval',lambda i:self.modal(i,'sync_seconds','Check interval in seconds'),2)
             self.button('Export settings',self.export,3); self.button('Recent errors',self.errors,3)
             self.button('Probe live providers',self.probe,4)
@@ -176,9 +178,31 @@ class AdminPanel(discord.ui.View):
         rows=await self.bot.db.query('SELECT event_id,user,usd_micros,source,created FROM ledger WHERE guild=? ORDER BY created DESC LIMIT 2000',(i.guild_id,))
         await reply(i,'Latest 2,000 deposits. Full history is in the encrypted backup.',file=attachment('verifier-deposits.json',rows))
     async def backfill(self,i):
-        await self.bot.db.execute('DELETE FROM checkpoints WHERE guild=?',(i.guild_id,)); await self.refresh_all(i)
+        await self.bot.db.execute('DELETE FROM checkpoints WHERE guild=?',(i.guild_id,))
+        users=await self.bot.db.query("SELECT DISTINCT user FROM links WHERE guild=? AND kind='wallet' AND active=1",(i.guild_id,))
+        for row in users:await self.bot.db.enqueue(i.guild_id,row['user'],scope='wallet')
+        await reply(i,'Historical wallet scan queued. Platform points were not requested.')
     async def refresh_all(self,i):
-        await self.bot.db.execute('UPDATE jobs SET next_run=0 WHERE guild=?',(i.guild_id,)); await reply(i,'All connected members are queued. Provider rate limits still apply.')
+        await i.response.defer(ephemeral=True);await authorized(self.bot,i,True)
+        bid=await self.bot.db.start_point_batch(i.guild_id,i.user.id)
+        await reply(i,f'Platform update #{bid} is queued. Five accounts are checked per worker pass. Use Update progress to follow it.')
+    async def point_progress(self,i):
+        await i.response.defer(ephemeral=True);await authorized(self.bot,i,True)
+        progress=await self.bot.db.point_progress(i.guild_id)
+        if not progress:return await reply(i,'No platform update has been started yet.')
+        counts=progress['counts']
+        await reply(i,f"Platform update #{progress['id']}: {progress['status']}\nFinished: {counts.get('done',0)}\nRemaining: {counts.get('pending',0)}\nNeeds retry: {counts.get('failed',0)}")
+    async def retry_points(self,i):
+        await i.response.defer(ephemeral=True);await authorized(self.bot,i,True)
+        progress=await self.bot.db.point_progress(i.guild_id)
+        if not progress or progress['status']=='running':return await reply(i,'No finished update is available to retry.')
+        def retry(c):
+            if c.execute("SELECT 1 FROM point_batches WHERE guild=? AND status='running' AND id!=?",(i.guild_id,progress['id'])).fetchone():return False
+            c.execute("UPDATE point_batch_members SET state='pending',error='' WHERE batch=? AND state='failed'",(progress['id'],))
+            c.execute("UPDATE point_batches SET status='running' WHERE id=?",(progress['id'],))
+            return True
+        if not await self.bot.db.run(retry):return await reply(i,'Another update has started. Open Update progress.')
+        await reply(i,'Only failed accounts will be retried. Finished accounts are retained.')
     async def deliveries(self,i):
         rows=await self.bot.db.query('SELECT event_id,state,message,attempts,created FROM deliveries WHERE guild=? ORDER BY created DESC LIMIT 100',(i.guild_id,))
         await reply(i,file=attachment('verifier-rip-deliveries.json',rows))

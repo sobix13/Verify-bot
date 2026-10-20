@@ -7,7 +7,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .config import canonical, defaults, validate
+from .config import canonical, defaults, validate, wallet_kinds,account_kinds
 
 
 class Conflict(ValueError):
@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS observations(guild INTEGER NOT NULL,wallet TEXT NOT N
 CREATE TABLE IF NOT EXISTS checkpoints(guild INTEGER NOT NULL,wallet TEXT NOT NULL,value TEXT NOT NULL,PRIMARY KEY(guild,wallet));
 CREATE TABLE IF NOT EXISTS snapshots(guild INTEGER NOT NULL,user INTEGER NOT NULL,value TEXT NOT NULL,created REAL NOT NULL,PRIMARY KEY(guild,user));
 CREATE TABLE IF NOT EXISTS jobs(guild INTEGER NOT NULL,user INTEGER NOT NULL,next_run REAL NOT NULL,failures INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(guild,user));
+CREATE TABLE IF NOT EXISTS monitoring(guild INTEGER,user INTEGER,active INTEGER NOT NULL,PRIMARY KEY(guild,user));
+CREATE TABLE IF NOT EXISTS job_requests(guild INTEGER,user INTEGER,kinds TEXT NOT NULL,version INTEGER NOT NULL,PRIMARY KEY(guild,user));
+CREATE TABLE IF NOT EXISTS point_batches(id INTEGER PRIMARY KEY,guild INTEGER NOT NULL,actor INTEGER NOT NULL,status TEXT NOT NULL,created REAL NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS point_batch_running ON point_batches(guild) WHERE status='running';
+CREATE TABLE IF NOT EXISTS point_batch_members(batch INTEGER,user INTEGER,state TEXT NOT NULL DEFAULT 'pending',error TEXT NOT NULL DEFAULT '',PRIMARY KEY(batch,user));
 CREATE TABLE IF NOT EXISTS role_grants(guild INTEGER NOT NULL,user INTEGER NOT NULL,role INTEGER NOT NULL,state TEXT NOT NULL,PRIMARY KEY(guild,user,role));
 CREATE TABLE IF NOT EXISTS deliveries(guild INTEGER NOT NULL,event_id TEXT NOT NULL,kind TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL,message INTEGER NOT NULL DEFAULT 0,attempts INTEGER NOT NULL DEFAULT 0,next_run REAL NOT NULL,created REAL NOT NULL,PRIMARY KEY(guild,event_id));
 CREATE TABLE IF NOT EXISTS webhook_ids(scope TEXT NOT NULL,event_id TEXT NOT NULL,expires REAL NOT NULL,PRIMARY KEY(scope,event_id));
@@ -66,6 +71,20 @@ class Store:
                     old=c.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
                     if not old or old[0]!='1': raise Conflict('Unsupported database schema. Install a compatible release; no migration was applied.')
                 c.execute('PRAGMA journal_mode=WAL'); c.executescript(SCHEMA)
+                if not c.execute("SELECT 1 FROM meta WHERE key='role_monitor_policy'").fetchone():
+                    for row in c.execute('SELECT guild,value FROM settings').fetchall():
+                        cfg=json.loads(row['value']);cfg['sync_seconds']=43200
+                        c.execute('UPDATE settings SET value=?,revision=revision+1 WHERE guild=?',(canonical(cfg),row['guild']))
+                        roles={r['role_id'] for r in cfg['rules'] if r['enabled'] and r['kind'] in wallet_kinds(cfg)}
+                        for grant in c.execute("SELECT user,role FROM role_grants WHERE guild=? AND state='active'",(row['guild'],)).fetchall():
+                            if grant['role'] in roles:
+                                c.execute('INSERT OR REPLACE INTO monitoring VALUES(?,?,1)',(row['guild'],grant['user']))
+                        pending=c.execute('SELECT user FROM jobs WHERE guild=? AND NOT EXISTS(SELECT 1 FROM snapshots WHERE snapshots.guild=jobs.guild AND snapshots.user=jobs.user)',(row['guild'],)).fetchall()
+                        for job in pending:
+                            links={r[0] for r in c.execute('SELECT kind FROM links WHERE guild=? AND user=? AND active=1',(row['guild'],job['user']))}
+                            kinds=(wallet_kinds(cfg) if 'wallet' in links else set())|(account_kinds(cfg) if 'account' in links else set())
+                            if kinds:c.execute('INSERT OR IGNORE INTO job_requests VALUES(?,?,?,1)',(row['guild'],job['user'],canonical(sorted(kinds))))
+                    c.execute("INSERT INTO meta VALUES('role_monitor_policy','1')")
                 version=c.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
                 if version!='1': raise Conflict('Unsupported database schema. Install a compatible release.')
         await asyncio.to_thread(init)
@@ -124,8 +143,19 @@ class Store:
         rows=await self.query('SELECT usd_micros FROM ledger WHERE guild=? AND user=?',(guild,user))
         return sum(r['usd_micros'] for r in rows)
 
-    async def enqueue(self,guild,user,when=None):
-        await self.execute('INSERT INTO jobs(guild,user,next_run) VALUES(?,?,?) ON CONFLICT(guild,user) DO UPDATE SET next_run=MIN(jobs.next_run,excluded.next_run)',(guild,user,time.time() if when is None else when))
+    async def enqueue(self,guild,user,when=None,*,scope='initial'):
+        cfg,_=await self.settings(guild)
+        kinds=wallet_kinds(cfg) if scope in ('wallet','hint','member') else account_kinds(cfg) if scope=='account' else wallet_kinds(cfg)|account_kinds(cfg)
+        def queue(c):
+            if scope=='hint':
+                active=c.execute('SELECT active FROM monitoring WHERE guild=? AND user=?',(guild,user)).fetchone()
+                if not active or not active['active']:return False
+            old=c.execute('SELECT * FROM job_requests WHERE guild=? AND user=?',(guild,user)).fetchone()
+            requested=kinds|set(json.loads(old['kinds'])) if old else kinds
+            c.execute('INSERT INTO job_requests VALUES(?,?,?,1) ON CONFLICT(guild,user) DO UPDATE SET kinds=excluded.kinds,version=version+1',(guild,user,canonical(sorted(requested))))
+            c.execute('INSERT INTO jobs(guild,user,next_run) VALUES(?,?,?) ON CONFLICT(guild,user) DO UPDATE SET next_run=MIN(jobs.next_run,excluded.next_run)',(guild,user,time.time() if when is None else when))
+            return True
+        return await self.run(queue)
 
     async def member_refresh(self,guild,user,now=None):
         now=time.time() if now is None else now
@@ -133,8 +163,38 @@ class Store:
             row=c.execute("SELECT created FROM audit WHERE guild=? AND actor=? AND action='member_refresh' ORDER BY id DESC LIMIT 1",(guild,user)).fetchone()
             if row and now-row['created']<60: raise ValueError('Your refresh is already queued. Wait one minute before requesting another.')
             c.execute("INSERT INTO audit(guild,actor,action,detail,created) VALUES(?,?,'member_refresh','Queued by member',?)",(guild,user,now))
-            c.execute('INSERT INTO jobs(guild,user,next_run) VALUES(?,?,?) ON CONFLICT(guild,user) DO UPDATE SET next_run=MIN(jobs.next_run,excluded.next_run)',(guild,user,now))
         await self.run(queue)
+        await self.enqueue(guild,user,now,scope='member')
+
+    async def finish_check(self,guild,user,version,active,when):
+        def finish(c):
+            current=c.execute('SELECT version FROM job_requests WHERE guild=? AND user=?',(guild,user)).fetchone()
+            if (current['version'] if current else 0)!=version:return False
+            c.execute('INSERT OR REPLACE INTO monitoring VALUES(?,?,?)',(guild,user,int(active)))
+            c.execute('DELETE FROM job_requests WHERE guild=? AND user=?',(guild,user))
+            if active:c.execute('UPDATE jobs SET next_run=?,failures=0 WHERE guild=? AND user=?',(when,guild,user))
+            else:c.execute('DELETE FROM jobs WHERE guild=? AND user=?',(guild,user))
+            return True
+        return await self.run(finish)
+
+    async def start_point_batch(self,guild,actor):
+        cfg,_=await self.settings(guild)
+        if not account_kinds(cfg):raise ValueError('Enable a platform data source first.')
+        def start(c):
+            current=c.execute("SELECT id FROM point_batches WHERE guild=? AND status IN ('running','paused') ORDER BY id DESC LIMIT 1",(guild,)).fetchone()
+            if current:return current['id']
+            users=c.execute("SELECT DISTINCT user FROM links WHERE guild=? AND kind='account' AND active=1",(guild,)).fetchall()
+            if not users:raise ValueError('No verified platform accounts are connected yet.')
+            bid=c.execute("INSERT INTO point_batches(guild,actor,status,created) VALUES(?,?,'running',?)",(guild,actor,time.time())).lastrowid
+            c.executemany('INSERT INTO point_batch_members(batch,user) VALUES(?,?)',[(bid,r['user']) for r in users])
+            return bid
+        return await self.run(start)
+
+    async def point_progress(self,guild):
+        batches=await self.query('SELECT * FROM point_batches WHERE guild=? ORDER BY id DESC LIMIT 1',(guild,))
+        if not batches:return None
+        counts=await self.query('SELECT state,COUNT(*) AS n FROM point_batch_members WHERE batch=? GROUP BY state',(batches[0]['id'],))
+        return {**batches[0],'counts':{r['state']:r['n'] for r in counts}}
 
     async def backup(self,destination,guild=None):
         target=Path(destination); target.parent.mkdir(parents=True,exist_ok=True)
@@ -144,7 +204,8 @@ class Store:
                 try:
                     src.backup(dst)
                     if guild is not None:
-                        for table in ('settings','audit','links','sessions','ledger','observations','checkpoints','snapshots','jobs','role_grants','deliveries'):
+                        dst.execute('DELETE FROM point_batch_members WHERE batch IN (SELECT id FROM point_batches WHERE guild<>?)',(guild,))
+                        for table in ('settings','audit','links','sessions','ledger','observations','checkpoints','snapshots','jobs','role_grants','deliveries','monitoring','job_requests','point_batches'):
                             dst.execute(f'DELETE FROM {table} WHERE guild<>?',(guild,))
                         dst.execute('DELETE FROM sessions')
                         dst.execute('DELETE FROM webhook_ids')

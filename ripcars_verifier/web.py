@@ -51,7 +51,9 @@ def build_app(store,linking,env,health_callback=None):
     def origin(request):
         if request.headers.get('Origin')!=linking.origin: raise ValueError('Origin did not match the connection site.')
 
-    async def page(request): return web.FileResponse(files/'index.html')
+    async def page(request):
+        if not linking.origin: return web.Response(status=503,text='Wallet connection is not configured. Use the account method offered in Discord.')
+        return web.FileResponse(files/'index.html')
     async def script(request): return web.FileResponse(files/'connect.js')
     async def style(request): return web.FileResponse(files/'style.css')
     async def challenge(request):
@@ -110,7 +112,7 @@ def build_app(store,linking,env,health_callback=None):
         cfg,_=await store.settings(guild)
         if not cfg['chain_webhook']: raise ValueError('Chain webhook is paused.')
         rows=await store.query("SELECT user FROM links WHERE guild=? AND kind='wallet' AND identity=? AND active=1",(guild,data['wallet']))
-        for row in rows: await store.enqueue(guild,row['user'])
+        for row in rows: await store.enqueue(guild,row['user'],scope='hint')
     async def chain(request):
         body,data=await strict_json(request); event_id,fresh=await authenticate(request,'chain','CHAIN_WEBHOOK_SECRET',body)
         if fresh:
@@ -129,7 +131,7 @@ def build_app(store,linking,env,health_callback=None):
             for row in await store.query("SELECT guild,user,identity FROM links WHERE kind='wallet' AND active=1"):
                 if row['identity'] in accounts:
                     cfg,_=await store.settings(row['guild'])
-                    if cfg['chain_webhook']: await store.enqueue(row['guild'],row['user'])
+                    if cfg['chain_webhook']: await store.enqueue(row['guild'],row['user'],scope='hint')
         # Hints only. A finalized RPC check, never this body, produces deposit points.
         return web.json_response({'ok':True})
     async def health(request):

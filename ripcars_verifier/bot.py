@@ -14,11 +14,11 @@ from discord.ext import commands
 
 from .auth import Linking
 from .backups import create_backup
-from .config import safe_url
+from .config import safe_url,wallet_kinds,account_kinds,role_metric,decimal
 from .coordination import Registry
 from .engine import Engine,role_plan
 from .member_ui import MemberPanel
-from .network import Http
+from .network import Http,RateLimited
 from .operations import Reporter, safe_role
 from .storage import Store,Conflict
 from .web import build_app
@@ -38,17 +38,19 @@ class Verifier(commands.Bot):
     def __init__(self,env=None):
         self.env=dict(os.environ if env is None else env)
         self.env.setdefault('DATABASE_PATH','data/verifier.sqlite3'); self.env.setdefault('COORDINATION_PATH','data/coordination.sqlite3'); self.env.setdefault('BACKUP_PATH','data/backups')
+        if Path(self.env['DATABASE_PATH']).resolve()==Path(self.env['COORDINATION_PATH']).resolve():
+            raise ValueError('Private database and shared coordination must be different files.')
         intents=discord.Intents.default(); intents.members=True; intents.message_content=False
         super().__init__(command_prefix=commands.when_mentioned,intents=intents,allowed_mentions=discord.AllowedMentions.none())
-        self.db=Store(self.env['DATABASE_PATH']); self.registry=Registry(self.env['COORDINATION_PATH']); self.http=Http(lambda:setattr(self,'worker_tick',time.monotonic()))
-        self.linking=Linking(self.db,self.env.get('PUBLIC_URL','https://verify.example.com')); self.engine=Engine(self.db,self.http,self.env)
+        self.db=Store(self.env['DATABASE_PATH']); self.registry=Registry(self.env['COORDINATION_PATH']); self.provider_http=Http(lambda:setattr(self,'worker_tick',time.monotonic()))
+        self.linking=Linking(self.db,self.env.get('PUBLIC_URL','')); self.engine=Engine(self.db,self.provider_http,self.env)
         self.reporter=Reporter(self); self.tasks=[]; self.runner=None; self.started=time.monotonic(); self.worker_tick=time.monotonic(); self.backup_day=''; self.bot_ready=False
         from .commands import VerifierCommands
         self.tree.add_command(VerifierCommands(self))
         self.tree.on_error=self.command_error
 
     async def setup_hook(self):
-        await self.db.open(); await self.registry.open(); await self.http.open()
+        await self.db.open(); await self.registry.open(); await self.provider_http.open()
         await self.db.execute("UPDATE deliveries SET state='review' WHERE state='sending'")
         self.add_view(MemberPanel(self))
         app=build_app(self.db,self.linking,self.env,self.web_health)
@@ -72,6 +74,9 @@ class Verifier(commands.Bot):
     async def command_error(self,interaction,error):
         from .operations import reply
         original=getattr(error,'original',error)
+        if isinstance(original,discord.NotFound) and original.code==10062:
+            logging.getLogger('ripcars.verifier').warning('Command interaction expired; no response retry: %s',getattr(interaction.command,'qualified_name','unknown'))
+            return
         if isinstance(original,ValueError): await reply(interaction,str(original)); return
         error_id=await self.reporter.error(interaction.guild,'slash command',original)
         await reply(interaction,'This action failed. Error ID: '+error_id+'. Run /verifier doctor.')
@@ -223,17 +228,47 @@ class Verifier(commands.Bot):
                         await self.db.execute('UPDATE jobs SET next_run=? WHERE guild=? AND user=?',(time.time()+3600,guild.id,job['user'])); continue
                     try:
                         member=guild.get_member(job['user']) or await guild.fetch_member(job['user'])
-                        snapshot,cfg,revision=await self.engine.refresh(guild.id,member.id)
+                        requests=await self.db.query('SELECT * FROM job_requests WHERE guild=? AND user=?',(guild.id,member.id))
+                        version=requests[0]['version'] if requests else 0
+                        kinds=set(json.loads(requests[0]['kinds'])) if requests else wallet_kinds(cfg)
+                        if not requests:
+                            owned={r.id for r in member.roles}
+                            chain_roles={r['role_id'] for r in cfg['rules'] if r['enabled'] and r['kind'] in kinds}
+                            if not owned&chain_roles:
+                                await self.db.finish_check(guild.id,member.id,version,False,0)
+                                continue
+                        snapshot,cfg,revision=await self.engine.refresh(guild.id,member.id,kinds)
                         await self.apply_roles(guild,member,cfg,snapshot,revision)
-                        incomplete=any(not v for v in snapshot['complete'].values()) or bool(snapshot.get('incomplete_rules'))
-                        await self.db.execute('UPDATE jobs SET next_run=?,failures=0 WHERE guild=? AND user=?',(time.time()+(cfg['retry_seconds'] if incomplete else cfg['sync_seconds']),guild.id,member.id))
-                    except discord.NotFound:
-                        await self.db.execute('DELETE FROM jobs WHERE guild=? AND user=?',(guild.id,job['user']))
+                        grants=await self.db.query('SELECT role,state FROM role_grants WHERE guild=? AND user=?',(guild.id,member.id))
+                        suspended={r['role'] for r in grants if r['state']=='manual'}
+                        owned={r.id for r in member.roles}|{r['role'] for r in grants if r['state']=='active'}
+                        eligible=False;unknown=False
+                        for rule in cfg['rules']:
+                            if not rule['enabled'] or rule['kind'] not in wallet_kinds(cfg) or rule['role_id'] in suspended or not snapshot.get('wallets'):continue
+                            value=role_metric(rule,snapshot)
+                            unknown=unknown or value is None
+                            eligible=eligible or (value is not None and value>=decimal(rule['threshold']) and rule['role_id'] in owned)
+                        # Unknown data stays retryable; known absence stops automatic monitoring.
+                        active=eligible or unknown
+                        await self.db.finish_check(guild.id,member.id,version,active,time.time()+(cfg['retry_seconds'] if unknown else cfg['sync_seconds']))
+                    except discord.NotFound as exc:
+                        if exc.code==10007:
+                            await self.db.execute('DELETE FROM jobs WHERE guild=? AND user=?',(guild.id,job['user']))
+                            await self.db.execute('DELETE FROM monitoring WHERE guild=? AND user=?',(guild.id,job['user']))
+                        else:
+                            await self.reporter.error(guild,'member sync',exc)
+                            await self.db.execute('UPDATE jobs SET next_run=? WHERE guild=? AND user=?',(time.time()+cfg['retry_seconds'],guild.id,job['user']))
                     except Exception as exc:
                         await self.reporter.error(guild,'member sync',exc)
                         delay=min(3600,cfg['retry_seconds']*2**min(job['failures'],4))
-                        await self.db.execute('UPDATE jobs SET next_run=?,failures=failures+1 WHERE guild=? AND user=?',(time.time()+delay,guild.id,job['user']))
+                        tracked=await self.db.query('SELECT active FROM monitoring WHERE guild=? AND user=?',(guild.id,job['user']))
+                        if job['failures']>=2 and not (tracked and tracked[0]['active']):
+                            await self.db.execute('DELETE FROM jobs WHERE guild=? AND user=?',(guild.id,job['user']))
+                            await self.db.execute('DELETE FROM job_requests WHERE guild=? AND user=?',(guild.id,job['user']))
+                        else:
+                            await self.db.execute('UPDATE jobs SET next_run=?,failures=failures+1 WHERE guild=? AND user=?',(time.time()+delay,guild.id,job['user']))
                     self.worker_tick=time.monotonic()
+                await self.point_batch_tick()
                 for row in await self.db.query("SELECT * FROM deliveries WHERE state='pending' AND next_run<=? ORDER BY created LIMIT 10",(time.time(),)):
                     try: await self.deliver(row)
                     except Exception as exc:
@@ -249,6 +284,33 @@ class Verifier(commands.Bot):
             except Exception as exc: await self.reporter.error(None,'worker',exc)
             await asyncio.sleep(15)
 
+    async def point_batch_tick(self):
+        batches=await self.db.query("SELECT * FROM point_batches WHERE status='running' ORDER BY id")
+        for batch in batches:
+            guild=self.get_guild(batch['guild'])
+            if not guild:continue
+            cfg,_=await self.db.settings(guild.id)
+            if not cfg['enabled']:continue
+            rows=await self.db.query("SELECT user FROM point_batch_members WHERE batch=? AND state='pending' ORDER BY user LIMIT 5",(batch['id'],))
+            for row in rows:
+                try:
+                    member=guild.get_member(row['user']) or await guild.fetch_member(row['user'])
+                    data,current,revision=await self.engine.refresh(guild.id,member.id,account_kinds(cfg))
+                    await self.apply_roles(guild,member,current,data,revision)
+                except Exception as exc:
+                    await self.db.execute("UPDATE point_batch_members SET state='failed',error=? WHERE batch=? AND user=?",(type(exc).__name__,batch['id'],row['user']))
+                    await self.reporter.error(guild,'platform batch',exc)
+                    if isinstance(exc,RateLimited):
+                        await self.db.execute("UPDATE point_batches SET status='paused' WHERE id=?",(batch['id'],))
+                        break
+                else:
+                    await self.db.execute("UPDATE point_batch_members SET state='done',error='' WHERE batch=? AND user=?",(batch['id'],row['user']))
+                self.worker_tick=time.monotonic()
+                await asyncio.sleep(1)
+            pending=await self.db.query("SELECT 1 FROM point_batch_members WHERE batch=? AND state='pending' LIMIT 1",(batch['id'],))
+            if not pending:
+                await self.db.execute("UPDATE point_batches SET status='completed' WHERE id=? AND status='running'",(batch['id'],))
+
     async def close(self):
         for task in self.tasks: task.cancel()
         for task in self.tasks:
@@ -256,4 +318,4 @@ class Verifier(commands.Bot):
             except asyncio.CancelledError: pass
             except Exception: pass
         if self.runner: await self.runner.cleanup()
-        await self.http.close(); await super().close()
+        await self.provider_http.close(); await super().close()

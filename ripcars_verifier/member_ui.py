@@ -3,6 +3,7 @@ from __future__ import annotations
 from urllib.parse import urlencode,urlsplit,urlunsplit
 
 import discord
+from .config import wallet_kinds
 
 from .operations import authorized,reply
 
@@ -38,6 +39,9 @@ class MemberPanel(discord.ui.View):
         if data:
             value=lambda key:str(len(data['assets'])) if key=='asset_count' and key in data['complete'] else str(data[key]) if key in data['complete'] else 'Not enabled'
             text+=f'\nLast check: <t:{int(data["checked_at"])}:R>\nDeposit points: {value("deposit_points")}\nPlatform points: {value("platform_points")}\nToken balance: {value("token_balance")}\nQualified assets: {value("asset_count")}'
+            for kind,label in [('token_balance','Token balance updated'),('platform_points','Platform points updated')]:
+                when=data.get('last_success',{}).get(kind)
+                if when:text+=f'\n{label}: <t:{int(when)}:R>'
             incomplete=[k for k,v in data['complete'].items() if not v]
             if incomplete: text+='\nHistory still syncing: '+', '.join(incomplete)
             if data.get('incomplete_rules'): text+='\nRules waiting for complete evidence: '+', '.join(data['incomplete_rules'])[:500]
@@ -48,8 +52,11 @@ class MemberPanel(discord.ui.View):
     async def refresh(self,interaction,button):
         cfg,_=await authorized(self.bot,interaction)
         if not cfg['enabled']: raise ValueError('Verifier is paused.')
+        links=await self.bot.db.links(interaction.guild_id,interaction.user.id)
+        if not any(r['kind']=='wallet' for r in links) or not wallet_kinds(cfg):
+            return await reply(interaction,'No active wallet check is configured. Platform points update when a server admin starts an update. Use My status for your saved result.')
         await self.bot.db.member_refresh(interaction.guild_id,interaction.user.id)
-        await reply(interaction,'Refresh queued. Open My status after the next worker pass.')
+        await reply(interaction,'Wallet refresh queued. Platform points update when a server admin starts an update. Open My status for your saved results.')
 
     @discord.ui.button(label='Disconnect',style=discord.ButtonStyle.secondary,custom_id='rcv:disconnect:v1')
     async def disconnect(self,interaction,button):
