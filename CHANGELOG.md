@@ -1,3 +1,9 @@
+# 1.1.0
+
+- Independent wallet and platform refresh policies. Qualified wallet monitoring defaults to 12 hours; points refresh is admin requested after initial verification.
+- Persisted batches, deduplication, progress and retry of failed accounts; provider limits pause the batch.
+- Keep proven identities and roles on provider failure; stop inactive monitoring and preserve manual overrides.
+
 # Changelog
 
 ## 1.0.1

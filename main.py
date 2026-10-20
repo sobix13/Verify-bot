@@ -9,8 +9,7 @@ from ripcars_verifier.config import safe_url
 async def main():
     token=os.getenv('DISCORD_TOKEN','')
     if not token or token.startswith('replace_'): raise SystemExit('Configure DISCORD_TOKEN in /etc/ripcars-verifier.env before starting.')
-    if not os.getenv('PUBLIC_URL'): raise SystemExit('Configure PUBLIC_URL with the real HTTPS connection origin before starting.')
-    safe_url(os.environ['PUBLIC_URL'],origin_only=True)
+    if os.getenv('PUBLIC_URL'): safe_url(os.environ['PUBLIC_URL'],origin_only=True)
     async with Verifier() as bot: await bot.start(token)
 
 

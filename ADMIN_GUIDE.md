@@ -2,6 +2,13 @@
 
 Open `/verifier panel`. Every admin panel is private, bound to its opener, and expires after 15 minutes. Server-side Manage Server/Administrator checks apply to every interaction. Concurrent edits use revision checks; reopen a stale panel instead of overwriting another admin's change.
 
+## Refresh policy in 1.1.0
+
+- Wallet qualifications: an initial member request, then every 12 hours only while a validated wallet qualification role remains. A known balance below every threshold removes bot-owned qualification roles and stops periodic checks. The proven address and history remain; the member can request a new wallet check later.
+- Unknown provider state preserves existing roles and remains retryable. Manual staff removal suspends automatic regrant. Errors are reported in Verifier's own staff log.
+- Platform points: initial linked-account verification, then no scheduled refresh and no member-triggered platform call. In Health and backups, Update platform points starts an admin-requested batch of known connected accounts. Five accounts are processed per pass, sequentially, with a pause between accounts. Progress survives restart; Retry failed updates retains completed accounts. A provider request-limit response pauses the batch rather than calling the remaining accounts.
+- Wallet refreshes do not call the platform API. Platform batches do not call wallet RPC. Missing sources do not become a zero balance.
+
 ## Section map
 
 | Section | Decisions and actions |
@@ -13,7 +20,7 @@ Open `/verifier panel`. Every admin panel is private, bound to its opener, and e
 | Assets and role rules | Add/update dedicated role rules, export/review rules, create or explicitly bind qualifying roles |
 | Rip announcements | Enable/skip pack announcements and optional chain refresh hints |
 | Channels and access | Gate member role, connection channel, optional pull channel and staff-only log channel |
-| Health and backups | Doctor, live probes, encrypted server backup, all-member refresh, interval, settings export and recent errors |
+| Health and backups | Doctor, live probes, encrypted server backup, batched platform update with progress and failed-account retry, interval, settings export and recent errors |
 | Public messages | Connection title/description and announcement title; update the existing public message |
 | Guide and revisions | Setup instructions, full settings export, saved revision IDs |
 
@@ -21,10 +28,10 @@ Channel selectors retain the selected numeric ID after saving. Each selected cha
 
 ## First installation
 
-1. Deploy the service and HTTPS connection site using DEPLOYMENT.md.
+1. Deploy the service using DEPLOYMENT.md. An HTTPS wallet connection site is needed only if you choose wallet linking.
 2. **Channels and access:** choose Gate's ordinary Rippers role. Importing it from the shared registry avoids duplicate member roles. Do not choose OG or a staff role.
 3. Choose an existing member-visible connection text channel and a staff-only log channel. Optionally choose the pack channel. Or use **Overview → Create unset verifier channels** with temporary Manage Channels permission.
-4. **Connections:** enable wallet linking. Enable website linking only when the team-approved login page and signed backend callback exist. Both methods are optional independently.
+4. **Connections:** choose account linking, wallet linking, or both. Enable account linking only when the team-approved login page and signed backend callback exist. Enable wallet linking only when its HTTPS site is configured. Both start disabled; platform account verification does not require wallet linking.
 5. **Data sources / Deposit tracking:** enable only implemented, configured integrations. Use the decision table below.
 6. **Assets and role rules:** define separate qualifying roles. Choose **Create and bind qualifying roles** while paused. Existing names are never automatically adopted; enter the exact role ID to adopt explicitly. Place roles below the bot and give them zero server permission bits.
 7. **Overview → Publish connection panel**. Posting updates the existing bot-owned message. A deleted/uncertain panel requires explicit reset and channel review; it is not silently duplicated.
